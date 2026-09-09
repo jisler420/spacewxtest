@@ -1,4 +1,4 @@
-/* SpaceWx poller: split cadence, HAPI deltas, 304s, backoff, abort. */
+/* SpaceWx poller: UTC boundaries, HAPI deltas, NOAA summary fallback. */
 const HAPI = "https://hapi.spaceweather.knmi.nl/hapi/data";
 const NOAA = {
   kp: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json",
@@ -62,8 +62,8 @@ function fingerprint(x) {
 function mergeRows(oldArr, neu) {
   if (!neu || !neu.length) return oldArr || [];
   if (!oldArr || !oldArr.length) return neu;
-  const lastT = oldArr[oldArr.length - 1].t;
-  const add = neu.filter(function (r) { return r.t > lastT; });
+  const lastRowT = oldArr[oldArr.length - 1].t;
+  const add = neu.filter(function (r) { return r.t > lastRowT; });
   const cut = Date.now() - 37 * 3600000;
   return oldArr.concat(add).filter(function (r) { return r.t >= cut; });
 }

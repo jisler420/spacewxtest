@@ -7,7 +7,6 @@
 <title>SpaceWx TEST</title>
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<!-- ee394b1 + hemi stale/canvas fix -->
 <style>
 :root{--bg:#070b12;--card:#121826;--line:#2a3650;--text:#eef3ff;--muted:#8b97b3;--acc:#5eead4;--ok:#34d399;--bad:#f87171;--rail:#0b1220}
 *{box-sizing:border-box}
@@ -219,7 +218,7 @@ th:first-child,td:first-child{text-align:left}
 const DEFAULT={zip:"",lat:30.02449,lon:-97.9072,place:"30.02449, -97.90720",tz:"America/Chicago",pollSec:60};
 function loadCfg(){try{return Object.assign({},DEFAULT,JSON.parse(localStorage.getItem("spacewx-cfg")||"{}"))}catch(e){return Object.assign({},DEFAULT)}}
 const cfg=loadCfg();
-const cache={wind:[],mag:[],goes:[],dst:[],dstPred:[],hp30:[],kp:[]};
+const cache={dst:[],dstPred:[],hp30:[],kp:[]};
 const DOWN="Data Feed Down";
 function hasValue(el){if(!el)return false;const t=(el.textContent||"").trim();return t&&t!=="-"&&t!=="—"&&t!==DOWN}
 function setDown(el){if(!el||hasValue(el))return;el.textContent=DOWN;el.className="down"}
@@ -242,12 +241,6 @@ function applyHealth(h){
 async function grab(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok) throw new Error(String(r.status));const ct=r.headers.get("content-type")||"";return (ct.includes("json")||u.endsWith(".json"))?r.json():r.text()}
 async function settled(u){try{return await grab(u)}catch(e){return null}}
 const last=a=>Array.isArray(a)&&a.length?a[a.length-1]:{};
-function magLat(lat,lon){
-  const poleLat=80.8*Math.PI/180, poleLon=-72.6*Math.PI/180;
-  const φ=lat*Math.PI/180, λ=lon*Math.PI/180;
-  const s=Math.sin(φ)*Math.sin(poleLat)+Math.cos(φ)*Math.cos(poleLat)*Math.cos(λ-poleLon);
-  return Math.asin(Math.max(-1,Math.min(1,s)))*180/Math.PI;
-}
 function auroraLevel(kind,n){
   if(!isFinite(n))return 0;
   if(kind==="g")return n<1?0:n<2?1:n<3?2:3;
@@ -559,13 +552,8 @@ async function hapi(id,params,start,stop){
   const txt=await settled(u);
   return txt?parseHapiCsv(typeof txt==="string"?txt:String(txt),params.split(",")):[];
 }
-async function hapi2(base,id,params,start,stop){
-  const u=base+"/data?id="+id+"&parameters="+params+"&time.min="+start+"&time.max="+stop+"&format=csv";
-  const txt=await settled(u);
-  return txt?parseHapiCsv(typeof txt==="string"?txt:String(txt),params.split(",")):[];
-}
 function isoH(d){return d.toISOString().replace(/\.\d{3}Z$/,"Z")}
-const hapiPack={xray:[],prot:[],mag:[],plasma:[],enlil:[],kp:[],hp:[],kpf:[],dst:[]};
+const hapiPack={mag:[],plasma:[],enlil:[],hp:[]};
 function drawWindImf(){
   const m=hapiPack.mag,p=hapiPack.plasma,lm=last(m),lp=last(p);
   if(isFinite(lp.speed)){vWind.textContent=Math.round(lp.speed)+" km/s";tone(vWind,"speed",lp.speed);stampWhen("tWind",lp.t,"wind");stampWhen("tDen",lp.t,"wind")}

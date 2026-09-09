@@ -1,0 +1,30 @@
+name: GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage kiosk as site root
+        run: |
+          mkdir -p _site
+          cp -a kiosk/. _site/
+          curl -fsSL https://kp.gfz.de/fileadmin/files_for_gfz_cms/Hp30_ap30_nowcast.txt -o _site/hp30.txt || true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

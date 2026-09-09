@@ -680,10 +680,8 @@ function tick(){
   utc.textContent="UTC "+n.toISOString().slice(11,19);
   railUtc.textContent=n.toISOString().slice(11,19)+" UTC";
   try{const loc=n.toLocaleTimeString("en-US",{timeZone:cfg.tz,hour12:false});local.textContent="Local "+loc;railLocal.textContent=loc+" "+(cfg.tz||"")}catch(e){}
-  if(n.getUTCSeconds()%15===0){
-    try{drawHemiPlot()}catch(e){}
-    try{drawEarth()}catch(e){}
-  }
+  try{drawHemiPlot()}catch(e){}
+  if(n.getUTCSeconds()%15===0) try{drawEarth()}catch(e){}
 }
 function markUpdated(ts){
   const t=ts||Date.now();
@@ -732,7 +730,9 @@ function applyWorkerData(data){
   }
 }
 
-tick();drawEarth();loadImgs();loadEnlil();
+tick();
+try{drawHemiPlot()}catch(e){}
+drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
   const wurl=new URL("spacewx-worker.js?v=20260909h1", document.baseURI||location.href);

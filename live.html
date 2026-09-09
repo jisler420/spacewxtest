@@ -26,7 +26,7 @@ header{display:grid;grid-template-columns:1fr auto 1fr;gap:8px 12px;align-items:
 .kpi > span + .dstpair{margin-top:4px}
 .dstpair > div{min-width:0;flex:1}
 .dstpair .lab{color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
-.dstpair b{font-size:22px;line-height:1.15;font-variant-numeric:tabular-nums}
+.dstpair .when{color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums;margin-top:2px;letter-spacing:.02em}
 .dstpair .r{text-align:right}
 .tone0{color:#eef3ff}.tone1{color:#f5d76e}.tone2{color:#f59e42}.tone3{color:#f05252}
 .kpi span{color:var(--muted);font-size:11px;text-transform:uppercase}
@@ -161,20 +161,20 @@ th:first-child,td:first-child{text-align:left}
   <div class="kpis kpis-3">
     <div class="kpi">
       <div class="dstpair">
-        <div><div class="lab">Hp30</div><b id="vHp30">-</b></div>
-        <div class="r"><div class="lab">Kp 3hr</div><b id="vKp">-</b></div>
+        <div><div class="lab">Hp30</div><b id="vHp30">-</b><div class="when" id="tHp30">—</div></div>
+        <div class="r"><div class="lab">Kp 3hr</div><b id="vKp">-</b><div class="when" id="tKp">—</div></div>
       </div>
     </div>
     <div class="kpi">
       <div class="dstpair">
-        <div><div class="lab">Speed</div><b id="vWind">-</b></div>
-        <div class="r"><div class="lab">Density</div><b id="vDen">-</b></div>
+        <div><div class="lab">Speed</div><b id="vWind">-</b><div class="when" id="tWind">—</div></div>
+        <div class="r"><div class="lab">Density</div><b id="vDen">-</b><div class="when" id="tDen">—</div></div>
       </div>
     </div>
     <div class="kpi">
       <div class="dstpair">
-        <div><div class="lab">IMF Bt</div><b id="vBt">-</b></div>
-        <div class="r"><div class="lab">Bz</div><b id="vBz">-</b></div>
+        <div><div class="lab">IMF Bt</div><b id="vBt">-</b><div class="when" id="tBt">—</div></div>
+        <div class="r"><div class="lab">Bz</div><b id="vBz">-</b><div class="when" id="tBz">—</div></div>
       </div>
     </div>
   </div>
@@ -282,7 +282,13 @@ let hemiSeries=[];
 let hemiPolledAt=0;
 function utcHms(ms){
   const d=new Date(ms);
+  if(!isFinite(ms)||!isFinite(d.getTime())) return "—";
   return String(d.getUTCHours()).padStart(2,"0")+":"+String(d.getUTCMinutes()).padStart(2,"0")+":"+String(d.getUTCSeconds()).padStart(2,"0")+" UTC";
+}
+function stampWhen(id, t){
+  const el=document.getElementById(id); if(!el) return;
+  const ms=typeof t==="number"?t:parseT(t);
+  el.textContent=isFinite(ms)?utcHms(ms):"—";
 }
 function hpBarColor(v){
   const a=Math.abs(v);
@@ -537,10 +543,12 @@ function isoH(d){return d.toISOString().replace(/\.\d{3}Z$/,"Z")}
 const hapiPack={xray:[],prot:[],mag:[],plasma:[],enlil:[],kp:[],hp:[],kpf:[],dst:[]};
 function drawWindImf(){
   const m=hapiPack.mag,p=hapiPack.plasma,lm=last(m),lp=last(p);
-  if(isFinite(lp.speed)){vWind.textContent=Math.round(lp.speed)+" km/s";tone(vWind,"speed",lp.speed)}
+  if(isFinite(lp.speed)){vWind.textContent=Math.round(lp.speed)+" km/s";tone(vWind,"speed",lp.speed);stampWhen("tWind",lp.t);stampWhen("tDen",lp.t)}
   if(isFinite(lp.density)){vDen.textContent=Number(lp.density).toFixed(1)+" p/cm3";tone(vDen,"density",lp.density)}
-  if(isFinite(lm.bt)){vBt.textContent=Number(lm.bt).toFixed(1)+" nT";tone(vBt,"bt",lm.bt)}
+  if(isFinite(lm.bt)){vBt.textContent=Number(lm.bt).toFixed(1)+" nT";tone(vBt,"bt",lm.bt);stampWhen("tBt",lm.t);stampWhen("tBz",lm.t)}
   if(isFinite(lm.bz_gsm)){vBz.textContent=Number(lm.bz_gsm).toFixed(1)+" nT";tone(vBz,"bz",lm.bz_gsm)}
+  const hp=last(hapiPack.hp);
+  if(isFinite(hp.Hp30)){vHp30.textContent=Number(hp.Hp30).toFixed(1);tone(vHp30,"hp",hp.Hp30);stampWhen("tHp30",hp.t)}
   drawSw();
 }
 function samp(arr,n){if(!arr||!arr.length)return [];if(arr.length<=n)return arr;const out=[],step=arr.length/n;for(let i=0;i<n;i++)out.push(arr[Math.min(arr.length-1,Math.floor(i*step))]);return out}
@@ -615,9 +623,9 @@ function drawDst(){
   if(pred&&isFinite(p)){pred.textContent=Math.round(p)+" nT";tone(pred,"dst",p)}
 }
 function drawHp30(){
-  let d=Number(last(cache.hp30).hp30);
-  if(!isFinite(d)) d=Number(last(hapiPack.hp).Hp30);
-  if(isFinite(d)){vHp30.textContent=d.toFixed(1);tone(vHp30,"hp",d)}
+  const gf=last(cache.hp30), kn=last(hapiPack.hp);
+  if(isFinite(kn.Hp30)){vHp30.textContent=Number(kn.Hp30).toFixed(1);tone(vHp30,"hp",kn.Hp30);stampWhen("tHp30",kn.t);return}
+  if(isFinite(gf.hp30)){vHp30.textContent=Number(gf.hp30).toFixed(1);tone(vHp30,"hp",gf.hp30);stampWhen("tHp30",gf.time_tag)}
 }
 function drawAll(){drawWindImf();drawHemiPlot()}
 async function loadWindImf(){
@@ -642,7 +650,7 @@ async function loadWx(){
     settled("https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json"),
     settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt")
   ]);
-  const k=Number((last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k)}
+  const k=Number((last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(last(kp)||{}).time_tag)}
   if(Array.isArray(kp)) cache.kp=kp;
   if(sc&&sc["0"]){const n=sc["0"];vRsg.textContent="R"+(n.R&&n.R.Scale||0)+" S"+(n.S&&n.S.Scale||0)+" G"+(n.G&&n.G.Scale||0);tone(vRsg,"g",Number(n.G&&n.G.Scale||0))}
   if(Array.isArray(kf)||dayTxt) renderKpForecast([].concat(Array.isArray(kf)?kf:[], parseNoaa3DayText(dayTxt||"")));
@@ -741,7 +749,7 @@ function applyWorkerData(data){
   if(data.mag||data.plasma||data.enlil||data.hp) drawWindImf();
   if(data.kp||data.sc||data.kf||data.dayTxt||data.dst||data.dstPred||data.hemi){
     const kp=data.kp,sc=data.sc,kf=data.kf,dayTxt=data.dayTxt,dst=data.dst,hemi=data.hemi;
-    const k=Number((last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k)}
+    const k=Number((last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(last(kp)||{}).time_tag)}
     if(Array.isArray(kp)) cache.kp=kp;
     if(sc&&sc["0"]){const n=sc["0"];vRsg.textContent="R"+(n.R&&n.R.Scale||0)+" S"+(n.S&&n.S.Scale||0)+" G"+(n.G&&n.G.Scale||0);tone(vRsg,"g",Number(n.G&&n.G.Scale||0))}
     if(Array.isArray(kf)||dayTxt) renderKpForecast([].concat(Array.isArray(kf)?kf:[], parseNoaa3DayText(dayTxt||"")));

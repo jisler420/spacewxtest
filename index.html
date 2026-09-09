@@ -241,7 +241,7 @@ function applyHealth(h){
     else {swStatus.textContent=DOWN;swStatus.className="down"}
   }
 }
-async function grab(u){const r=await fetch(u,{cache:"no-cache"});if(!r.ok) throw new Error(String(r.status));const ct=r.headers.get("content-type")||"";return (ct.includes("json")||u.endsWith(".json"))?r.json():r.text()}
+async function grab(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok) throw new Error(String(r.status));const ct=r.headers.get("content-type")||"";return (ct.includes("json")||u.endsWith(".json"))?r.json():r.text()}
 async function settled(u){try{return await grab(u)}catch(e){return null}}
 const last=a=>Array.isArray(a)&&a.length?a[a.length-1]:{};
 function magLat(lat,lon){

@@ -13,8 +13,6 @@ const NOAA = {
   rtswWind: "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json",
 };
 
-const etag = Object.create(null);
-const lastMod = Object.create(null);
 const bodyCache = Object.create(null);
 const printCache = Object.create(null);
 const series = { mag: [], plasma: [], enlil: [], hp: [] };
@@ -87,16 +85,8 @@ function mixSignal(outer) {
 }
 
 async function grab(u, signal) {
-  const headers = {};
-  if (etag[u]) headers["If-None-Match"] = etag[u];
-  if (lastMod[u]) headers["If-Modified-Since"] = lastMod[u];
-  const r = await fetch(u, { cache: "no-cache", headers: headers, signal: mixSignal(signal) });
-  if (r.status === 304 && bodyCache[u] !== undefined) return { data: bodyCache[u], cached: true };
+  const r = await fetch(u, { cache: "no-store", signal: mixSignal(signal) });
   if (!r.ok) throw new Error(String(r.status));
-  const e = r.headers.get("etag");
-  const m = r.headers.get("last-modified");
-  if (e) etag[u] = e;
-  if (m) lastMod[u] = m;
   const ct = r.headers.get("content-type") || "";
   const data = ct.includes("json") || u.endsWith(".json") ? await r.json() : await r.text();
   bodyCache[u] = data;

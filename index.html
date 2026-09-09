@@ -19,12 +19,15 @@ header{display:grid;grid-template-columns:1fr auto 1fr;gap:8px 12px;align-items:
 .main{padding:12px 12px 40px;padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
 .kpis{display:grid;gap:8px;margin-bottom:12px}
 .kpis-4{grid-template-columns:repeat(4,minmax(0,1fr))}
-.kpis-6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.kpis-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0;overflow:hidden}
 .kpi b{display:block;font-size:22px;word-break:break-word}
-.dstpair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.dstpair{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:0;align-items:start}
+.kpi > span + .dstpair{margin-top:4px}
 .dstpair .lab{color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
-.dstpair b{font-size:22px;line-height:1.1}
+.dstpair b{font-size:22px;line-height:1.15;font-variant-numeric:tabular-nums}
+.dstpair .r{text-align:right}
+.dstpair .r .lab,.dstpair .r b{text-align:right}
 .tone0{color:#eef3ff}.tone1{color:#f5d76e}.tone2{color:#f59e42}.tone3{color:#f05252}
 .kpi span{color:var(--muted);font-size:11px;text-transform:uppercase}
 .short{display:none}
@@ -73,9 +76,6 @@ canvas.chart{height:210px;background:#0a0e18}
 table{width:100%;border-collapse:collapse;font-size:13px}
 td,th{padding:6px 4px;border-bottom:1px solid #1d2738;text-align:center}
 th:first-child,td:first-child{text-align:left}
-@media(max-width:1200px){
-  .kpis-6{grid-template-columns:repeat(3,minmax(0,1fr))}
-}
 @media(max-width:1100px){
   .swrow{grid-template-columns:1fr}
   .maprow{grid-template-columns:1fr}
@@ -93,7 +93,7 @@ th:first-child,td:first-child{text-align:left}
   .opened{white-space:normal}
   .long{display:none}.short{display:inline}
   .cols{grid-template-columns:1fr}
-  .kpis-6{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpis-3{grid-template-columns:1fr}
   #kpForecast .kp{font-size:13px}
   #kpForecast .g{display:block;margin-left:0;margin-top:2px}
   .main{padding:10px 10px 32px}
@@ -104,7 +104,6 @@ th:first-child,td:first-child{text-align:left}
 }
 @media(max-width:560px){
   .kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .dstpair{grid-template-columns:1fr}
   .player{flex-wrap:wrap}
   .mapbox{min-height:180px}
   #swPlot{height:300px}
@@ -112,7 +111,7 @@ th:first-child,td:first-child{text-align:left}
   header{row-gap:4px}
 }
 @media(max-width:380px){
-  .kpis-4,.kpis-6{grid-template-columns:1fr}
+  .kpis-4{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -159,13 +158,25 @@ th:first-child,td:first-child{text-align:left}
       </div>
     </div>
   </div>
-  <div class="kpis kpis-6">
-    <div class="kpi"><span>Hp30</span><b id="vHp30">-</b></div>
-    <div class="kpi"><span>Kp 3hr</span><b id="vKp">-</b></div>
-    <div class="kpi"><span>Speed</span><b id="vWind">-</b></div>
-    <div class="kpi"><span>Density</span><b id="vDen">-</b></div>
-    <div class="kpi"><span class="long">Interplanetary Magnetic Field Bt</span><span class="short">IMF Bt</span><b id="vBt">-</b></div>
-    <div class="kpi"><span>Bz</span><b id="vBz">-</b></div>
+  <div class="kpis kpis-3">
+    <div class="kpi">
+      <div class="dstpair">
+        <div><div class="lab">Hp30</div><b id="vHp30">-</b></div>
+        <div class="r"><div class="lab">Kp 3hr</div><b id="vKp">-</b></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="dstpair">
+        <div><div class="lab">Speed</div><b id="vWind">-</b></div>
+        <div class="r"><div class="lab">Density</div><b id="vDen">-</b></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="dstpair">
+        <div><div class="lab">IMF Bt</div><b id="vBt">-</b></div>
+        <div class="r"><div class="lab">Bz</div><b id="vBz">-</b></div>
+      </div>
+    </div>
   </div>
   <div class="maprow">
     <div>

@@ -97,7 +97,7 @@ async function settled(u, signal) {
   try {
     return await grab(u, signal);
   } catch (e) {
-    if (e && (e.name === "AbortError" || e.name === "TimeoutError")) throw e;
+    if (e && e.name === "AbortError") throw e;
     return null;
   }
 }
@@ -257,11 +257,9 @@ async function collect(kind, signal) {
 }
 
 let running = { fast: null, slow: null };
-let fails = 0;
 async function loop(kind) {
   kind = kind || "fast";
   const keys = kind === "all" ? ["fast", "slow"] : [kind];
-  if (kind !== "all" && running[kind]) return;
   const ac = new AbortController();
   keys.forEach(function (k) {
     if (running[k] && running[k] !== ac) {
@@ -272,12 +270,10 @@ async function loop(kind) {
   try {
     const data = await collect(kind, ac.signal);
     if (ac.signal.aborted) return;
-    fails = 0;
     postMessage({ type: "update", data: data });
   } catch (e) {
-    if (e && (e.name === "AbortError" || e.name === "TimeoutError")) return;
-    fails = Math.min(fails + 1, 6);
-    postMessage({ type: "error", error: String(e && e.message ? e.message : e), fails: fails });
+    if (e && e.name === "AbortError") return;
+    postMessage({ type: "error", error: String(e && e.message ? e.message : e) });
   } finally {
     keys.forEach(function (k) { if (running[k] === ac) running[k] = null; });
   }
@@ -285,33 +281,34 @@ async function loop(kind) {
 
 let userSec = 60;
 let hidden = false;
-let waitFast = null, beatFast = null, waitSlow = null, beatSlow = null;
+let waitFast = null, waitSlow = null;
 
 function effectiveFast() {
   return hidden ? 300 : ([60, 300].indexOf(userSec) >= 0 ? userSec : 60);
 }
 
-function delayMs(base) {
-  const m = Math.min(8, Math.pow(1.5, fails));
-  return Math.min(300000, base * m);
+function msToBoundary(period) {
+  const p = Math.max(1000, period);
+  return Math.max(250, p - (Date.now() % p));
 }
 
 function arm() {
   const fast = effectiveFast() * 1000;
   const slow = 300000;
   if (waitFast) clearTimeout(waitFast);
-  if (beatFast) clearInterval(beatFast);
   if (waitSlow) clearTimeout(waitSlow);
-  if (beatSlow) clearInterval(beatSlow);
-  const now = Date.now();
-  waitFast = setTimeout(function () {
-    loop("fast");
-    beatFast = setInterval(function () { loop("fast"); }, delayMs(fast));
-  }, Math.max(250, fast - (now % fast)));
-  waitSlow = setTimeout(function () {
-    loop("slow");
-    beatSlow = setInterval(function () { loop("slow"); }, slow);
-  }, Math.max(400, slow - (now % slow)));
+  function tickFast() {
+    Promise.resolve(loop("fast")).then(function () {
+      waitFast = setTimeout(tickFast, msToBoundary(effectiveFast() * 1000));
+    });
+  }
+  function tickSlow() {
+    Promise.resolve(loop("slow")).then(function () {
+      waitSlow = setTimeout(tickSlow, msToBoundary(300000));
+    });
+  }
+  waitFast = setTimeout(tickFast, msToBoundary(fast));
+  waitSlow = setTimeout(tickSlow, msToBoundary(slow));
 }
 
 onmessage = function (e) {
@@ -324,5 +321,6 @@ onmessage = function (e) {
   }
 };
 
-loop("all");
+loop("fast");
+loop("slow");
 arm();

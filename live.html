@@ -216,7 +216,7 @@ function applyHealth(h){
   if(!h.kp) setDown(vKp);
   if(!h.scales) setDown(vRsg);
   if(!h.aurora){setDown(vAurora);if(mapStatus){mapStatus.textContent=DOWN;mapStatus.className="down"}}
-  if(!h.hemi){
+  if(!h.hemi && !hemiSeries.length){
     ["hemiNEarth","hemiSEarth","hemiNL1","hemiSL1"].forEach(function(id){setDown(document.getElementById(id))});
     const n=document.getElementById("hemiPlotNote"); if(n){n.textContent=DOWN;n.className="down"}
   }
@@ -268,6 +268,11 @@ function kpGCell(k,scale){
   return "<span class=\"kp\">"+k.toFixed(1)+"</span>"+(g&&g!=="G0"?"<span class=\"g "+g.toLowerCase()+"\">"+g+"</span>":"");
 }
 let hemiSeries=[];
+let hemiPolledAt=0;
+function utcHms(ms){
+  const d=new Date(ms);
+  return String(d.getUTCHours()).padStart(2,"0")+":"+String(d.getUTCMinutes()).padStart(2,"0")+":"+String(d.getUTCSeconds()).padStart(2,"0")+" UTC";
+}
 function hpBarColor(v){
   const a=Math.abs(v);
   if(a>=85)return "#f05252";
@@ -311,7 +316,7 @@ function drawHemiPlot(){
   const L=50,R=10,T=22,B=24, pw=cssW-L-R, ph=cssH-T-B;
   const now=Date.now(), STEP=5*60000, nSlots=72, HOLD=17.5, BLUE="#38bdf8";
   const latest=hemiSeries.length?hemiSeries[hemiSeries.length-1]:null;
-  const stale=!latest || (now-(latest.obs||latest.fcst)>20*60000);
+  const stale=!latest || (now-(latest.fcst||latest.obs)>25*60000);
   let earthRow=null;
   if(hemiSeries.length){
     for(let i=0;i<hemiSeries.length;i++){
@@ -401,7 +406,11 @@ function drawHemiPlot(){
     ctx.fillText(label, x, cssH-7);
   }
   const note=document.getElementById("hemiPlotNote");
-  if(note) note.textContent=stale?"Feed down · blue ±17.5 GW placeholders":"6 hours · 5-minute averages · At Earth = NOAA Forecast_Time";
+  if(note){
+    const poll=hemiPolledAt?"Polled "+utcHms(hemiPolledAt):"Polled —";
+    note.textContent=stale?(poll+" · feed down"):(poll+" · 6h · 5 min");
+    note.className=stale?"down":"muted";
+  }
   const earth=stale?null:earthRow;
   const l1=stale?null:latest;
   function badge(id,v,down){
@@ -414,10 +423,15 @@ function drawHemiPlot(){
   badge("hemiNL1", l1?l1.n:HOLD, !l1);
   badge("hemiSL1", l1?l1.s:HOLD, !l1);
 }
-function applyHemi(hemi){
+function applyHemi(hemi, ts){
   const rows=hemi?parseHemiSeries(hemi):[];
-  if(rows.length) hemiSeries=rows;
+  if(rows.length){ hemiSeries=rows; hemiPolledAt=ts||Date.now(); }
   drawHemiPlot();
+}
+async function refreshHemi(){
+  const txt=await settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt");
+  if(txt) applyHemi(txt);
+  else try{drawHemiPlot()}catch(e){}
 }
 function parseNoaa3DayText(txt){
   const lines=String(txt||"").split(/\n/);
@@ -724,7 +738,7 @@ function applyWorkerData(data){
     if(Array.isArray(dst)){cache.dst=dst.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
     if(Array.isArray(data.dstPred)){cache.dstPred=data.dstPred.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
     if(Array.isArray(dst)||Array.isArray(data.dstPred)) drawDst();
-    if(hemi) applyHemi(hemi);
+    if(hemi) applyHemi(hemi, data.fetchedAt||Date.now());
     feedStatus.textContent="live";feedStatus.className="ok";
   }
   if(data.hp30txt){
@@ -750,10 +764,11 @@ tick();
 try{drawHemiPlot()}catch(e){}
 drawEarth();loadImgs();loadEnlil();
 (function scheduleHemi(){
+  refreshHemi();
   const ms=5*60000;
   setTimeout(function(){
-    try{drawHemiPlot()}catch(e){}
-    setInterval(function(){try{drawHemiPlot()}catch(e){}}, ms);
+    refreshHemi();
+    setInterval(refreshHemi, ms);
   }, ms-(Date.now()%ms));
 })();
 let wxWorker=null, workerOk=false;

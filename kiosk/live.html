@@ -120,17 +120,6 @@ th:first-child,td:first-child{text-align:left}
 </style>
 </head>
 <body>
-<script>
-(function(){
-  function c(){
-    var n=new Date(), t=n.toISOString().slice(11,19);
-    var u=document.getElementById("utc"); if(u) u.textContent="UTC "+t;
-    var r=document.getElementById("railUtc"); if(r) r.textContent=t+" UTC";
-  }
-  c(); setInterval(c,1000);
-})();
-</script>
-
 <header>
   <div class="brand">SpaceWx TEST</div>
   <div class="opened" id="pageOpened">Opened —</div>
@@ -845,7 +834,8 @@ function tick(){
   utc.textContent="UTC "+n.toISOString().slice(11,19);
   railUtc.textContent=n.toISOString().slice(11,19)+" UTC";
   try{const loc=n.toLocaleTimeString("en-US",{timeZone:cfg.tz,hour12:false});local.textContent="Local "+loc;railLocal.textContent=loc+" "+(cfg.tz||"")}catch(e){}
-  if(n.getUTCSeconds()%15===0) try{drawEarth()}catch(e){}
+  const min=n.getUTCHours()*60+n.getUTCMinutes();
+  if(min!==tick._termMin){tick._termMin=min; try{drawEarth()}catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -899,17 +889,9 @@ function applyWorkerData(data){
 tick();
 try{drawHemiPlot()}catch(e){}
 drawEarth();loadImgs();loadEnlil();
-(function scheduleHemi(){
-  refreshHemi();
-  const ms=5*60000;
-  setTimeout(function(){
-    refreshHemi();
-    setInterval(refreshHemi, ms);
-  }, ms-(Date.now()%ms));
-})();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=poll6b", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=poll7", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}
@@ -930,7 +912,7 @@ if(!wxWorker){
   const ms=sec*1000;
   setTimeout(function(){refreshKpis("fast");setInterval(function(){refreshKpis("fast")},ms)},ms-(Date.now()%ms));
 }
-setInterval(function(){loadImgs();loadEnlil();drawEarth()},300000);
+setInterval(function(){loadImgs(); if(!timer) loadEnlil();},300000);
 document.addEventListener("visibilitychange",function(){
   if(wxWorker){try{wxWorker.postMessage({type:"config",pollSec:cfg.pollSec||60,hidden:document.hidden})}catch(e){}}
   if(!document.hidden) refreshKpis("all");

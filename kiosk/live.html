@@ -153,7 +153,12 @@ th:first-child,td:first-child{text-align:left}
   <div class="kpis kpis-4">
     <div class="kpi"><span>Observer</span><b id="railUtc">-</b><div class="muted" id="railLocal"></div><div class="muted" id="updatedAt">Updated —</div></div>
     <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
-    <div class="kpi"><span>NOAA scales</span><b id="vRsg">-</b><div class="when" id="tScales">—</div><div class="muted">R · S · G</div></div>
+    <div class="kpi">
+      <div class="dstpair">
+        <div><div class="lab">NOAA scales</div><b id="vRsg">-</b><div class="when" id="tScales">—</div><div class="muted">R · S · G</div></div>
+        <div class="r"><div class="lab">Kp 1m</div><b id="vKp1m">-</b><div class="when" id="tKp1m">—</div></div>
+      </div>
+    </div>
     <div class="kpi">
       <span>Disturbance Storm Time Index</span>
       <div class="dstpair">
@@ -293,7 +298,7 @@ function ageClass(kind, ms){
     if(now<=slotEnd+4*3600000) return "stale";
     return "dead";
   }
-  const AGE={wind:[10*60000,20*60000],hp:[40*60000,90*60000],hemi:[15*60000,25*60000],dst:[90*60000,3*3600000],scales:[20*60000,60*60000]};
+  const AGE={wind:[10*60000,20*60000],hp:[40*60000,90*60000],hemi:[15*60000,25*60000],dst:[90*60000,3*3600000],scales:[20*60000,60*60000],kp1m:[5*60000,15*60000]};
   const a=AGE[kind]||AGE.wind;
   const age=now-ms;
   if(age<=a[0]) return "fresh";
@@ -639,6 +644,24 @@ function stampScales(sc){
   const n=sc&&sc["0"]; if(!n) return;
   stampWhen("tScales", (n.DateStamp||"")+"T"+(n.TimeStamp||""),"scales");
 }
+function newestByTime(arr){
+  let best=null, bt=-1;
+  (arr||[]).forEach(function(r){
+    const t=parseT(r&&r.time_tag);
+    if(isFinite(t)&&t>=bt){bt=t;best=r}
+  });
+  return best;
+}
+function drawKp1m(row){
+  const el=document.getElementById("vKp1m"); if(!el) return;
+  const r=row&&!Array.isArray(row)?row:newestByTime(row);
+  if(!r) return;
+  const k=Number(r.estimated_kp!=null?r.estimated_kp:r.kp);
+  if(!isFinite(k)) return;
+  el.textContent=k.toFixed(2);
+  tone(el,"kp",k);
+  stampWhen("tKp1m", r.time_tag, "kp1m");
+}
 function drawHp30(){
   const gf=last(cache.hp30), kn=last(hapiPack.hp);
   if(isFinite(kn.Hp30)){vHp30.textContent=Number(kn.Hp30).toFixed(1);tone(vHp30,"hp",kn.Hp30);stampWhen("tHp30",kn.t,"hp");return}
@@ -678,14 +701,15 @@ async function loadWindImf(){
   markUpdated();
 }
 async function loadWx(){
-  const [kp,sc,kf,dayTxt,dst,dstPred,hemi]=await Promise.all([
+  const [kp,sc,kf,dayTxt,dst,dstPred,hemi,kp1m]=await Promise.all([
     settled("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"),
     settled("https://services.swpc.noaa.gov/products/noaa-scales.json"),
     settled("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"),
     settled("https://services.swpc.noaa.gov/text/3-day-forecast.txt"),
     settled("https://services.swpc.noaa.gov/products/kyoto-dst.json"),
     settled("https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json"),
-    settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt")
+    settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt"),
+    settled("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json")
   ]);
   const k=Number((last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(last(kp)||{}).time_tag,"kp")}
   if(Array.isArray(kp)) cache.kp=kp;
@@ -695,6 +719,7 @@ async function loadWx(){
   if(Array.isArray(dstPred)){cache.dstPred=dstPred.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
   if(Array.isArray(dst)||Array.isArray(dstPred)) drawDst();
   if(hemi) applyHemi(hemi);
+  if(kp1m) drawKp1m(kp1m);
   drawSw();
 }
 async function loadHp30(){
@@ -786,6 +811,7 @@ function applyWorkerData(data){
   if(data.enlil) hapiPack.enlil=data.enlil;
   if(data.hp) hapiPack.hp=data.hp;
   if(data.mag||data.plasma||data.enlil||data.hp) drawWindImf();
+  if(data.kp1m) drawKp1m(data.kp1m);
   if(data.kp||data.sc||data.kf||data.dayTxt||data.dst||data.dstPred||data.hemi){
     const kp=data.kp,sc=data.sc,kf=data.kf,dayTxt=data.dayTxt,dst=data.dst,hemi=data.hemi;
     const k=Number((last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(last(kp)||{}).time_tag,"kp")}
@@ -831,7 +857,7 @@ drawEarth();loadImgs();loadEnlil();
 })();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=poll4", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=poll5", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

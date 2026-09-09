@@ -11,6 +11,7 @@ const NOAA = {
   aurora: "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
   sumMag: "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
   sumSpeed: "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
+  kp1m: "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
 };
 
 const bodyCache = Object.create(null);
@@ -170,11 +171,12 @@ async function collect(kind, signal) {
   const wantSlow = kind === "slow" || kind === "all";
 
   if (wantFast) {
-    const [mag, plasma, dstGot, aurora] = await Promise.all([
+    const [mag, plasma, dstGot, aurora, kp1mGot] = await Promise.all([
       hapi("solar_wind_mag_rt", "bt,bx_gsm,by_gsm,bz_gsm", hapiStart(series.mag), stop, signal),
       hapi("solar_wind_plasma_rt", "density,speed,temperature", hapiStart(series.plasma), stop, signal),
       settled(NOAA.dst, signal),
       settled(NOAA.aurora, signal),
+      settled(NOAA.kp1m, signal),
     ]);
     series.mag = mergeRows(series.mag, mag);
     series.plasma = mergeRows(series.plasma, plasma);
@@ -204,6 +206,15 @@ async function collect(kind, signal) {
         out.aurora = a;
         changed = true;
       }
+    }
+    if (kp1mGot && kp1mGot.data) {
+      const rows = Array.isArray(kp1mGot.data) ? kp1mGot.data : [];
+      let best = null, bt = -1;
+      rows.forEach(function (r) {
+        const t = parseT(r && r.time_tag);
+        if (Number.isFinite(t) && t >= bt) { bt = t; best = r; }
+      });
+      if (best && putIfChanged(out, "kp1m", { time_tag: best.time_tag, estimated_kp: best.estimated_kp, kp: best.kp })) changed = true;
     }
   }
 
@@ -253,6 +264,7 @@ async function collect(kind, signal) {
     scales: !!bodyCache[NOAA.scales],
     forecast: !!(bodyCache[NOAA.kf] || bodyCache[NOAA.day]),
     aurora: !!printCache.aurora || !!bodyCache[NOAA.aurora],
+    kp1m: !!bodyCache[NOAA.kp1m],
     magSrc: src.mag,
     plasmaSrc: src.plasma,
     hpSrc: src.hp,

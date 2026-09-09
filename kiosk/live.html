@@ -150,7 +150,7 @@ th:first-child,td:first-child{text-align:left}
 <main class="main">
   <div class="kpis kpis-4">
     <div class="kpi"><span>Observer</span><b id="railUtc">-</b><div class="muted" id="railLocal"></div><div class="muted" id="updatedAt">Updated —</div></div>
-    <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="muted">At this location · OVATION</div></div>
+    <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
     <div class="kpi"><span>NOAA scales</span><b id="vRsg">-</b><div class="when" id="tScales">—</div><div class="muted">R · S · G</div></div>
     <div class="kpi">
       <span>Disturbance Storm Time Index</span>
@@ -721,6 +721,7 @@ async function loadAurora(){
   vAurora.textContent=Math.round(best)+"%";
   tone(vAurora,"pct",best);
   const obs=o["Observation Time"]||o["Forecast Time"]||"";
+  stampWhen("tAurora", obs);
   mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")):"equirectangular Earth · poles + OVATION";
   drawEarth();
 }
@@ -778,6 +779,7 @@ function applyWorkerData(data){
       vAurora.textContent=Math.round(best)+"%";
       tone(vAurora,"pct",best);
       const obs=data.aurora["Observation Time"]||data.aurora["Forecast Time"]||"";
+      stampWhen("tAurora", obs);
       mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")):"equirectangular Earth · poles + OVATION";
       drawEarth();
     }

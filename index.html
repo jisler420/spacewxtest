@@ -184,7 +184,7 @@ th:first-child,td:first-child{text-align:left}
         <h2>Hemispheric Power</h2>
         <div class="hemiwrap"><canvas id="hemiPlot"></canvas></div>
         <div class="hemilegs">
-          <div class="row head"><span></span><span id="hemiEarthHdr">At Earth</span><span>At L1 Now</span></div>
+          <div class="row head"><span></span><span id="hemiEarthHdr">At Earth (Now)</span><span>At L1 Now</span></div>
           <div class="row"><span>Northern hemisphere</span><b id="hemiNEarth" class="hpbadge">-</b><b id="hemiNL1" class="hpbadge">-</b></div>
           <div class="row"><span>Southern hemisphere</span><b id="hemiSEarth" class="hpbadge">-</b><b id="hemiSL1" class="hpbadge">-</b></div>
         </div>
@@ -379,12 +379,10 @@ function drawHemiPlot(){
   ctx.textAlign="center"; ctx.fillStyle="#8b97b3"; ctx.font="10px Segoe UI,system-ui,sans-serif";
   ctx.fillText("Gigawatt", 0, 0);
   ctx.restore();
-  const earthMs=earthRow&&isFinite(earthRow.fcst)?earthRow.fcst:now;
-  const dLbl=new Date(earthMs);
-  const earthLbl="At Earth ("+String(dLbl.getUTCHours()).padStart(2,"0")+":"+String(dLbl.getUTCMinutes()).padStart(2,"0")+" UTC)";
+  const earthLbl="At Earth (Now)";
   const hdr=document.getElementById("hemiEarthHdr"); if(hdr) hdr.textContent=earthLbl;
   ctx.fillStyle="#eef3ff"; ctx.font="700 10px Segoe UI,system-ui,sans-serif";
-  ctx.textAlign=nx>L+pw-110?"right":"center";
+  ctx.textAlign=nx>L+pw-90?"right":"center";
   ctx.fillText(earthLbl, nx, T-6);
   ctx.fillStyle="#8b97b3"; ctx.font="10px Segoe UI,system-ui,sans-serif";
   const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];

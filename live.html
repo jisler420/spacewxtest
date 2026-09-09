@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>SpaceWx TEST</title>
-<!-- ee394b1 At Earth label horizontal -->
+<!-- ee394b1 + hemi stale/canvas fix -->
 <style>
 :root{--bg:#070b12;--card:#121826;--line:#2a3650;--text:#eef3ff;--muted:#8b97b3;--acc:#5eead4;--ok:#34d399;--bad:#f87171;--rail:#0b1220}
 *{box-sizing:border-box}
@@ -289,13 +289,14 @@ function drawHemiPlot(){
   const el=document.getElementById("hemiPlot"); if(!el)return;
   const wrap=el.parentElement, cssW=Math.max(260,wrap.clientWidth||320), cssH=Math.max(200,wrap.clientHeight||360);
   const dpr=Math.min(2,window.devicePixelRatio||1);
-  el.width=Math.round(cssW*dpr); el.height=Math.round(cssH*dpr);
+  const bw=Math.round(cssW*dpr), bh=Math.round(cssH*dpr);
+  if(el.width!==bw||el.height!==bh){ el.width=bw; el.height=bh; }
   const ctx=el.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle="#0b1220"; ctx.fillRect(0,0,cssW,cssH);
   const L=50,R=10,T=22,B=24, pw=cssW-L-R, ph=cssH-T-B;
   const now=Date.now(), STEP=5*60000, nSlots=72, HOLD=17.5, BLUE="#38bdf8";
   const latest=hemiSeries.length?hemiSeries[hemiSeries.length-1]:null;
-  const stale=!latest || (now-(latest.obs||latest.fcst)>15*60000);
+  const stale=!latest || (now-(latest.fcst||latest.obs)>25*60000);
   const t1=latest?latest.fcst:now;
   const t0=t1-nSlots*STEP, span=t1-t0, xAt=function(t){return L+((t-t0)/span)*pw};
   let peak=HOLD;
@@ -397,7 +398,8 @@ function drawHemiPlot(){
   badge("hemiSL1", l1?l1.s:HOLD, !l1);
 }
 function applyHemi(hemi){
-  hemiSeries=hemi?parseHemiSeries(hemi):[];
+  const rows=hemi?parseHemiSeries(hemi):[];
+  if(rows.length) hemiSeries=rows;
   drawHemiPlot();
 }
 function parseNoaa3DayText(txt){
@@ -678,8 +680,10 @@ function tick(){
   utc.textContent="UTC "+n.toISOString().slice(11,19);
   railUtc.textContent=n.toISOString().slice(11,19)+" UTC";
   try{const loc=n.toLocaleTimeString("en-US",{timeZone:cfg.tz,hour12:false});local.textContent="Local "+loc;railLocal.textContent=loc+" "+(cfg.tz||"")}catch(e){}
-  drawHemiPlot();
-  if(n.getUTCSeconds()%15===0) drawEarth();
+  if(n.getUTCSeconds()%15===0){
+    try{drawHemiPlot()}catch(e){}
+    try{drawEarth()}catch(e){}
+  }
 }
 function markUpdated(ts){
   const t=ts||Date.now();

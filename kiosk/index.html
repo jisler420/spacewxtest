@@ -301,13 +301,20 @@ function ageClass(kind, ms, goodMs){
     if(goodAge>15*60000) return "stale";
     return "fresh";
   }
+  if(kind==="hp"){
+    const rowAge=now-ms;
+    const goodAge=now-(isFinite(goodMs)?goodMs:ms);
+    if(rowAge>60*60000) return "dead";
+    if(goodAge>60*60000) return "stale";
+    return "fresh";
+  }
   if(kind==="kp"){
     const slotEnd=ms+3*3600000;
     if(now<=slotEnd+90*60000) return "fresh";
     if(now<=slotEnd+4*3600000) return "stale";
     return "dead";
   }
-  const AGE={hp:[40*60000,90*60000],hemi:[15*60000,25*60000],dst:[90*60000,3*3600000],scales:[20*60000,60*60000],kp1m:[5*60000,15*60000]};
+  const AGE={hemi:[15*60000,25*60000],dst:[90*60000,3*3600000],scales:[20*60000,60*60000],kp1m:[5*60000,15*60000]};
   const a=AGE[kind]||[10*60000,20*60000];
   const age=now-ms;
   if(age<=a[0]) return "fresh";
@@ -588,8 +595,7 @@ function drawWindImf(){
   if(isFinite(lm.bt)){vBt.textContent=Number(lm.bt).toFixed(1)+" nT";tone(vBt,"bt",lm.bt)}
   if(isFinite(lm.bz_gsm)){vBz.textContent=Number(lm.bz_gsm).toFixed(1)+" nT";tone(vBz,"bz",lm.bz_gsm)}
   if(isFinite(rowM.t)){stampWhen("tBt",rowM.t,"wind",lm.t);stampWhen("tBz",rowM.t,"wind",lm.t)}
-  const hp=lastGood(hapiPack.hp,["Hp30"]);
-  if(isFinite(hp.Hp30)){vHp30.textContent=Number(hp.Hp30).toFixed(1);tone(vHp30,"hp",hp.Hp30);stampWhen("tHp30",hp.t,"hp")}
+  drawHp30();
   drawSw();
 }
 function samp(arr,n){if(!arr||!arr.length)return [];if(arr.length<=n)return arr;const out=[],step=arr.length/n;for(let i=0;i<n;i++)out.push(arr[Math.min(arr.length-1,Math.floor(i*step))]);return out}
@@ -685,10 +691,34 @@ function drawKp1m(row){
   tone(el,"kp",k);
   stampWhen("tKp1m", r.time_tag, "kp1m");
 }
+function parseGfzHp30(txt){
+  const rows=[];
+  String(txt||"").split(/\n/).forEach(function(line){
+    if(!line||line.startsWith("#"))return;
+    const p=line.trim().split(/\s+/);
+    if(p.length<8)return;
+    const hp=Number(p[7]), y=+p[0], mo=+p[1], d=+p[2], h=+p[3];
+    const t=Date.UTC(y,mo-1,d,Math.floor(h),Math.round((h%1)*60));
+    if(!isFinite(t))return;
+    const rec={time_tag:new Date(t).toISOString(), t:t};
+    if(isFinite(hp)&&hp>=0) rec.hp30=hp;
+    else rec.fill=true;
+    rows.push(rec);
+  });
+  return rows;
+}
 function drawHp30(){
-  const gf=last(cache.hp30), kn=last(hapiPack.hp);
-  if(isFinite(kn.Hp30)){vHp30.textContent=Number(kn.Hp30).toFixed(1);tone(vHp30,"hp",kn.Hp30);stampWhen("tHp30",kn.t,"hp");return}
-  if(isFinite(gf.hp30)){vHp30.textContent=Number(gf.hp30).toFixed(1);tone(vHp30,"hp",gf.hp30);stampWhen("tHp30",gf.time_tag,"hp")}
+  const knG=lastGood(hapiPack.hp,["Hp30"]), knR=last(hapiPack.hp);
+  const gfG=lastGood(cache.hp30,["hp30"]), gfR=last(cache.hp30);
+  let num=NaN, goodT=NaN;
+  if(isFinite(knG.Hp30)&&(!isFinite(gfG.hp30)||(knG.t||0)>=(gfG.t||parseT(gfG.time_tag)||0))){
+    num=knG.Hp30; goodT=knG.t;
+  }else if(isFinite(gfG.hp30)){
+    num=gfG.hp30; goodT=gfG.t||parseT(gfG.time_tag);
+  }
+  const rowT=Math.max(knR.t||0, gfR.t||parseT(gfR.time_tag)||0);
+  if(isFinite(num)){vHp30.textContent=Number(num).toFixed(1);tone(vHp30,"hp",num)}
+  if(rowT||isFinite(goodT)) stampWhen("tHp30", rowT||goodT, "hp", goodT);
 }
 function drawAll(){drawWindImf();drawHemiPlot()}
 async function loadWindImf(){
@@ -748,7 +778,7 @@ async function loadWx(){
 async function loadHp30(){
   const txt=await settled("./hp30.txt");
   if(!txt)return;
-  const rows=[];String(txt).split(/\n/).forEach(line=>{if(!line||line.startsWith("#"))return;const p=line.trim().split(/\s+/);if(p.length<8)return;const hp=Number(p[7]);if(!isFinite(hp)||hp<0)return;const y=+p[0],mo=+p[1],d=+p[2],h=+p[3];rows.push({time_tag:new Date(Date.UTC(y,mo-1,d,Math.floor(h),Math.round((h%1)*60))).toISOString(),hp30:hp})});
+  const rows=parseGfzHp30(txt);
   if(rows.length){cache.hp30=rows;drawHp30()}
 }
 function armImg(img, note, okText){
@@ -848,7 +878,7 @@ function applyWorkerData(data){
     feedStatus.textContent="live";feedStatus.className="ok";
   }
   if(data.hp30txt){
-    const rows=[];String(data.hp30txt).split(/\n/).forEach(line=>{if(!line||line.startsWith("#"))return;const p=line.trim().split(/\s+/);if(p.length<8)return;const hp=Number(p[7]);if(!isFinite(hp)||hp<0)return;const y=+p[0],mo=+p[1],d=+p[2],h=+p[3];rows.push({time_tag:new Date(Date.UTC(y,mo-1,d,Math.floor(h),Math.round((h%1)*60))).toISOString(),hp30:hp})});
+    const rows=parseGfzHp30(data.hp30txt);
     if(rows.length){cache.hp30=rows;drawHp30()}
   }
   if(data.aurora){
@@ -880,7 +910,7 @@ drawEarth();loadImgs();loadEnlil();
 })();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=poll6", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=poll6b", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

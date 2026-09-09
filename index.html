@@ -296,7 +296,15 @@ function drawHemiPlot(){
   const L=50,R=10,T=22,B=24, pw=cssW-L-R, ph=cssH-T-B;
   const now=Date.now(), STEP=5*60000, nSlots=72, HOLD=17.5, BLUE="#38bdf8";
   const latest=hemiSeries.length?hemiSeries[hemiSeries.length-1]:null;
-  const stale=!latest || (now-(latest.fcst||latest.obs)>25*60000);
+  const stale=!latest || (now-(latest.obs||latest.fcst)>20*60000);
+  let earthRow=null;
+  if(hemiSeries.length){
+    for(let i=0;i<hemiSeries.length;i++){
+      if(hemiSeries[i].fcst<=now) earthRow=hemiSeries[i];
+      else break;
+    }
+    if(!earthRow) earthRow=hemiSeries[0];
+  }
   const t1=latest?latest.fcst:now;
   const t0=t1-nSlots*STEP, span=t1-t0, xAt=function(t){return L+((t-t0)/span)*pw};
   let peak=HOLD;
@@ -313,11 +321,6 @@ function drawHemiPlot(){
     ctx.beginPath(); ctx.moveTo(L,Math.round(yAt(v))+0.5); ctx.lineTo(L+pw,Math.round(yAt(v))+0.5); ctx.stroke();
   });
   const barW=pw/(1.5*nSlots-0.5), gap=barW*0.5;
-  function xEarth(t){
-    if(!latest) return L+pw;
-    const i=(nSlots-1)-((latest.fcst-t)/STEP);
-    return L+Math.max(-0.5,Math.min(nSlots-0.5,i))*(barW+gap)+barW/2;
-  }
   const bins=new Array(nSlots);
   if(!stale){
     hemiSeries.forEach(function(r){
@@ -336,7 +339,13 @@ function drawHemiPlot(){
     ctx.fillStyle=live?hpBarColor(s):BLUE;
     ctx.fillRect(x, Math.round(y0), barW, Math.max(1,Math.round(yAt(-s))-Math.round(y0)));
   }
-  const nx=Math.min(L+pw-1,Math.max(L,xEarth(now)));
+  let iEarth=nSlots-1;
+  if(latest && earthRow){
+    iEarth=nSlots-1-Math.round((latest.obs-earthRow.obs)/STEP);
+    if(iEarth<0) iEarth=0;
+    if(iEarth>nSlots-1) iEarth=nSlots-1;
+  }
+  const nx=L+iEarth*(barW+gap)+barW/2;
   ctx.fillStyle="rgba(238,243,255,0.04)"; ctx.fillRect(nx,T,L+pw-nx,ph);
   ctx.strokeStyle="#eef3ff"; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(Math.round(nx)+0.5,T); ctx.lineTo(Math.round(nx)+0.5,T+ph); ctx.stroke();
@@ -350,19 +359,26 @@ function drawHemiPlot(){
   ctx.textAlign="center"; ctx.fillStyle="#8b97b3"; ctx.font="10px Segoe UI,system-ui,sans-serif";
   ctx.fillText("Gigawatt", 0, 0);
   ctx.restore();
-  const earthLbl="At Earth ("+String(new Date(now).getUTCHours()).padStart(2,"0")+":"+String(new Date(now).getUTCMinutes()).padStart(2,"0")+" UTC)";
+  const earthMs=earthRow&&isFinite(earthRow.fcst)?earthRow.fcst:now;
+  const dLbl=new Date(earthMs);
+  const earthLbl="At Earth ("+String(dLbl.getUTCHours()).padStart(2,"0")+":"+String(dLbl.getUTCMinutes()).padStart(2,"0")+" UTC)";
   const hdr=document.getElementById("hemiEarthHdr"); if(hdr) hdr.textContent=earthLbl;
   ctx.fillStyle="#eef3ff"; ctx.font="700 10px Segoe UI,system-ui,sans-serif";
   ctx.textAlign=nx>L+pw-110?"right":"center";
   ctx.fillText(earthLbl, nx, T-6);
   ctx.fillStyle="#8b97b3"; ctx.font="10px Segoe UI,system-ui,sans-serif";
   const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const startH=new Date(latest?latest.fcst-nSlots*STEP:now-nSlots*STEP); startH.setUTCMinutes(0,0,0);
+  function xObs(t){
+    if(!latest) return L+pw;
+    const i=(nSlots-1)-((latest.obs-t)/STEP);
+    return L+Math.max(-0.5,Math.min(nSlots-0.5,i))*(barW+gap)+barW/2;
+  }
+  const startH=new Date(latest?latest.obs-nSlots*STEP:now-nSlots*STEP); startH.setUTCMinutes(0,0,0);
   startH.setUTCHours(startH.getUTCHours()+1);
   ctx.textAlign="center";
-  const tRight=latest?latest.fcst:now;
+  const tRight=latest?latest.obs:now;
   for(let t=startH.getTime(); t<=tRight; t+=3600000){
-    const dt=new Date(t), x=xEarth(t);
+    const dt=new Date(t), x=xObs(t);
     if(x<L-4||x>L+pw+4) continue;
     ctx.strokeStyle="#2a3650";
     ctx.beginPath(); ctx.moveTo(Math.round(x)+0.5,T+ph); ctx.lineTo(Math.round(x)+0.5,T+ph+4); ctx.stroke();
@@ -370,22 +386,8 @@ function drawHemiPlot(){
     ctx.fillText(label, x, cssH-7);
   }
   const note=document.getElementById("hemiPlotNote");
-  if(note) note.textContent=stale?"Feed down · blue ±17.5 GW placeholders":"6 hours · 5-minute averages · latest at right edge";
-  function lerpHemi(t){
-    if(!hemiSeries.length) return null;
-    let a=null,b=null;
-    for(let i=0;i<hemiSeries.length;i++){
-      const r=hemiSeries[i];
-      if(r.fcst<=t) a=r;
-      if(r.fcst>=t){ b=r; break; }
-    }
-    if(a&&b&&b.fcst!==a.fcst){
-      const u=(t-a.fcst)/(b.fcst-a.fcst);
-      return {n:a.n+u*(b.n-a.n), s:a.s+u*(b.s-a.s)};
-    }
-    return a||b;
-  }
-  const earth=stale?null:lerpHemi(now);
+  if(note) note.textContent=stale?"Feed down · blue ±17.5 GW placeholders":"6 hours · 5-minute averages · At Earth = NOAA Forecast_Time";
+  const earth=stale?null:earthRow;
   const l1=stale?null:latest;
   function badge(id,v,down){
     const b=document.getElementById(id); if(!b)return;
@@ -680,7 +682,6 @@ function tick(){
   utc.textContent="UTC "+n.toISOString().slice(11,19);
   railUtc.textContent=n.toISOString().slice(11,19)+" UTC";
   try{const loc=n.toLocaleTimeString("en-US",{timeZone:cfg.tz,hour12:false});local.textContent="Local "+loc;railLocal.textContent=loc+" "+(cfg.tz||"")}catch(e){}
-  try{drawHemiPlot()}catch(e){}
   if(n.getUTCSeconds()%15===0) try{drawEarth()}catch(e){}
 }
 function markUpdated(ts){
@@ -733,6 +734,13 @@ function applyWorkerData(data){
 tick();
 try{drawHemiPlot()}catch(e){}
 drawEarth();loadImgs();loadEnlil();
+(function scheduleHemi(){
+  const ms=5*60000;
+  setTimeout(function(){
+    try{drawHemiPlot()}catch(e){}
+    setInterval(function(){try{drawHemiPlot()}catch(e){}}, ms);
+  }, ms-(Date.now()%ms));
+})();
 let wxWorker=null, workerOk=false;
 try{
   const wurl=new URL("spacewx-worker.js?v=20260909h1", document.baseURI||location.href);

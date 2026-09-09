@@ -820,6 +820,20 @@ document.addEventListener("visibilitychange",function(){
   if(!document.hidden) refreshKpis("all");
 });
 window.addEventListener("resize",function(){drawEarth();drawAll()});
+(function(){
+  const HALF=30*60*1000;
+  function wait(){return Math.max(1000, HALF-(Date.now()%HALF))}
+  function reload(){
+    if(document.hidden){
+      document.addEventListener("visibilitychange",function once(){
+        if(!document.hidden){document.removeEventListener("visibilitychange",once);location.reload()}
+      });
+      return;
+    }
+    location.reload();
+  }
+  setTimeout(reload, wait());
+})();
 </script>
 </body>
 </html>

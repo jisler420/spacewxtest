@@ -793,7 +793,7 @@ drawEarth();loadImgs();loadEnlil();
 })();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=poll2", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=poll3", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

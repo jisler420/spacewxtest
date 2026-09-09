@@ -155,11 +155,11 @@ async function collect(kind, signal) {
   const wantSlow = kind === "slow" || kind === "all";
 
   if (wantFast) {
-    const [mag, plasma, dstGot, hemi] = await Promise.all([
+    const [mag, plasma, dstGot, aurora] = await Promise.all([
       hapi("solar_wind_mag_rt", "bt,bx_gsm,by_gsm,bz_gsm", hapiStart(series.mag), stop, signal),
       hapi("solar_wind_plasma_rt", "density,speed,temperature", hapiStart(series.plasma), stop, signal),
       settled(NOAA.dst, signal),
-      settled(NOAA.hemi, signal),
+      settled(NOAA.aurora, signal),
     ]);
     series.mag = mergeRows(series.mag, mag);
     series.plasma = mergeRows(series.plasma, plasma);
@@ -190,11 +190,19 @@ async function collect(kind, signal) {
     if (putIfChanged(out, "mag", series.mag)) changed = true;
     if (putIfChanged(out, "plasma", series.plasma)) changed = true;
     if (dst && putIfChanged(out, "dst", dst.data)) changed = true;
-    if (hemi && putIfChanged(out, "hemi", hemi.data)) changed = true;
+    if (aurora && aurora.data) {
+      const a = aurora.data;
+      const stamp = String(a["Observation Time"] || a["Forecast Time"] || "") + ":" + ((a.coordinates && a.coordinates.length) || 0);
+      if (printCache.aurora !== stamp) {
+        printCache.aurora = stamp;
+        out.aurora = a;
+        changed = true;
+      }
+    }
   }
 
   if (wantSlow) {
-    const [enlil, hp, kpGot, sc, kf, dayTxt, dstPred, aurora, hp30txt] = await Promise.all([
+    const [enlil, hp, kpGot, sc, kf, dayTxt, dstPred, hemi, hp30txt] = await Promise.all([
       hapi("solar_wind_plasma_enlil_metoffice", "density,speed,bt", hapiStart(series.enlil), stop, signal),
       hapi("hp30_index", "Hp30", hapiStart(series.hp), stop, signal),
       settled(NOAA.kp, signal),
@@ -202,7 +210,7 @@ async function collect(kind, signal) {
       settled(NOAA.kf, signal),
       settled(NOAA.day, signal),
       settled(NOAA.dstPred, signal),
-      settled(NOAA.aurora, signal),
+      settled(NOAA.hemi, signal),
       settled("./hp30.txt", signal),
     ]);
     series.enlil = mergeRows(series.enlil, enlil);
@@ -223,15 +231,7 @@ async function collect(kind, signal) {
     if (kf && putIfChanged(out, "kf", kf.data)) changed = true;
     if (dayTxt && putIfChanged(out, "dayTxt", dayTxt.data)) changed = true;
     if (dstPred && putIfChanged(out, "dstPred", dstPred.data)) changed = true;
-    if (aurora && aurora.data) {
-      const a = aurora.data;
-      const stamp = String(a["Observation Time"] || a["Forecast Time"] || "") + ":" + ((a.coordinates && a.coordinates.length) || 0);
-      if (printCache.aurora !== stamp) {
-        printCache.aurora = stamp;
-        out.aurora = a;
-        changed = true;
-      }
-    }
+    if (hemi && putIfChanged(out, "hemi", hemi.data)) changed = true;
     if (hp30txt && putIfChanged(out, "hp30txt", hp30txt.data)) changed = true;
   }
 

@@ -407,8 +407,9 @@ function drawHemiPlot(){
   }
   const note=document.getElementById("hemiPlotNote");
   if(note){
-    const poll=hemiPolledAt?"Polled "+utcHms(hemiPolledAt):"Polled —";
-    note.textContent=stale?(poll+" · feed down"):(poll+" · 6h · 5 min");
+    const dataT=latest&&isFinite(latest.obs)?utcHms(latest.obs):"";
+    const stamp=dataT?("Data "+dataT):"Data —";
+    note.textContent=stale?(stamp+" · feed down"):(stamp+" · 6h · 5 min");
     note.className=stale?"down":"muted";
   }
   const earth=stale?null:earthRow;

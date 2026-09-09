@@ -281,25 +281,34 @@ function utcHms(ms){
   if(!isFinite(ms)||!isFinite(d.getTime())) return "—";
   return String(d.getUTCHours()).padStart(2,"0")+":"+String(d.getUTCMinutes()).padStart(2,"0")+":"+String(d.getUTCSeconds()).padStart(2,"0")+" UTC";
 }
-function stampWhen(id, t, kind){
+function stampWhen(id, t, kind, goodT){
   const el=document.getElementById(id); if(!el) return;
   const ms=typeof t==="number"?t:parseT(t);
+  const gs=goodT==null?ms:(typeof goodT==="number"?goodT:parseT(goodT));
   el.dataset.ms=isFinite(ms)?String(ms):"";
+  el.dataset.good=isFinite(gs)?String(gs):"";
   el.dataset.kind=kind||el.dataset.kind||"wind";
   el.textContent=isFinite(ms)?utcHms(ms):"—";
   paintAge(el);
 }
-function ageClass(kind, ms){
+function ageClass(kind, ms, goodMs){
   if(!isFinite(ms)) return "dead";
   const now=Date.now();
+  if(kind==="wind"){
+    const rowAge=now-ms;
+    const goodAge=now-(isFinite(goodMs)?goodMs:ms);
+    if(rowAge>20*60000) return "dead";
+    if(goodAge>15*60000) return "stale";
+    return "fresh";
+  }
   if(kind==="kp"){
     const slotEnd=ms+3*3600000;
     if(now<=slotEnd+90*60000) return "fresh";
     if(now<=slotEnd+4*3600000) return "stale";
     return "dead";
   }
-  const AGE={wind:[10*60000,20*60000],hp:[40*60000,90*60000],hemi:[15*60000,25*60000],dst:[90*60000,3*3600000],scales:[20*60000,60*60000],kp1m:[5*60000,15*60000]};
-  const a=AGE[kind]||AGE.wind;
+  const AGE={hp:[40*60000,90*60000],hemi:[15*60000,25*60000],dst:[90*60000,3*3600000],scales:[20*60000,60*60000],kp1m:[5*60000,15*60000]};
+  const a=AGE[kind]||[10*60000,20*60000];
   const age=now-ms;
   if(age<=a[0]) return "fresh";
   if(age<=a[1]) return "stale";
@@ -308,7 +317,8 @@ function ageClass(kind, ms){
 function paintAge(el){
   if(!el) return;
   const ms=Number(el.dataset.ms);
-  el.className="when "+ageClass(el.dataset.kind, ms);
+  const good=Number(el.dataset.good);
+  el.className="when "+ageClass(el.dataset.kind, ms, good);
 }
 function restampAges(){
   document.querySelectorAll(".when[data-ms]").forEach(paintAge);
@@ -548,7 +558,8 @@ function parseHapiCsv(text,keys){
     const t=parseT(p[0]); if(!isFinite(t))return;
     const rec={t:t}; let ok=false;
     keys.forEach(function(k,i){const v=Number(p[i+1]); if(isFinite(v)&&v>-1e20&&v<1e20&&v!==-9999){rec[k]=v;ok=true}});
-    if(ok) out.push(rec);
+    rec.fill=!ok;
+    out.push(rec);
   });
   return out;
 }
@@ -559,13 +570,25 @@ async function hapi(id,params,start,stop){
 }
 function isoH(d){return d.toISOString().replace(/\.\d{3}Z$/,"Z")}
 const hapiPack={mag:[],plasma:[],enlil:[],hp:[]};
+function lastGood(arr, keys){
+  const a=arr||[];
+  for(let i=a.length-1;i>=0;i--){
+    const r=a[i];
+    for(let k=0;k<keys.length;k++) if(isFinite(r[keys[k]])) return r;
+  }
+  return {};
+}
 function drawWindImf(){
-  const m=hapiPack.mag,p=hapiPack.plasma,lm=last(m),lp=last(p);
-  if(isFinite(lp.speed)){vWind.textContent=Math.round(lp.speed)+" km/s";tone(vWind,"speed",lp.speed);stampWhen("tWind",lp.t,"wind");stampWhen("tDen",lp.t,"wind")}
+  const m=hapiPack.mag,p=hapiPack.plasma;
+  const lm=lastGood(m,["bt","bz_gsm"]), lp=lastGood(p,["speed","density"]);
+  const rowM=last(m), rowP=last(p);
+  if(isFinite(lp.speed)){vWind.textContent=Math.round(lp.speed)+" km/s";tone(vWind,"speed",lp.speed)}
   if(isFinite(lp.density)){vDen.textContent=Number(lp.density).toFixed(1)+" p/cm3";tone(vDen,"density",lp.density)}
-  if(isFinite(lm.bt)){vBt.textContent=Number(lm.bt).toFixed(1)+" nT";tone(vBt,"bt",lm.bt);stampWhen("tBt",lm.t,"wind");stampWhen("tBz",lm.t,"wind")}
+  if(isFinite(rowP.t)){stampWhen("tWind",rowP.t,"wind",lp.t);stampWhen("tDen",rowP.t,"wind",lp.t)}
+  if(isFinite(lm.bt)){vBt.textContent=Number(lm.bt).toFixed(1)+" nT";tone(vBt,"bt",lm.bt)}
   if(isFinite(lm.bz_gsm)){vBz.textContent=Number(lm.bz_gsm).toFixed(1)+" nT";tone(vBz,"bz",lm.bz_gsm)}
-  const hp=last(hapiPack.hp);
+  if(isFinite(rowM.t)){stampWhen("tBt",rowM.t,"wind",lm.t);stampWhen("tBz",rowM.t,"wind",lm.t)}
+  const hp=lastGood(hapiPack.hp,["Hp30"]);
   if(isFinite(hp.Hp30)){vHp30.textContent=Number(hp.Hp30).toFixed(1);tone(vHp30,"hp",hp.Hp30);stampWhen("tHp30",hp.t,"hp")}
   drawSw();
 }
@@ -680,7 +703,7 @@ async function loadWindImf(){
   if(plasma.length) hapiPack.plasma=plasma;
   if(enlil.length) hapiPack.enlil=enlil;
   if(hp.length) hapiPack.hp=hp;
-  const magAge=last(hapiPack.mag).t, plAge=last(hapiPack.plasma).t;
+  const magAge=lastGood(hapiPack.mag,["bt","bz_gsm"]).t, plAge=lastGood(hapiPack.plasma,["speed","density"]).t;
   if(!isFinite(magAge)||Date.now()-magAge>10*60000||!isFinite(plAge)||Date.now()-plAge>10*60000){
     const [sm,sw]=await Promise.all([
       settled("https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json"),
@@ -857,7 +880,7 @@ drawEarth();loadImgs();loadEnlil();
 })();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=poll5", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=poll6", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

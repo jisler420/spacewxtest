@@ -43,7 +43,9 @@ function parseHapiCsv(text, keys) {
         ok = true;
       }
     });
-    if (ok) out.push(rec);
+    if (ok) rec.fill = false;
+    else rec.fill = true;
+    out.push(rec);
   });
   return out;
 }
@@ -77,8 +79,20 @@ function hapiStart(arr) {
 function lastT(arr) {
   return arr && arr.length && Number.isFinite(arr[arr.length - 1].t) ? arr[arr.length - 1].t : 0;
 }
-function isStale(arr, maxAge) {
-  return !arr || !arr.length || (Date.now() - lastT(arr) > maxAge);
+function lastGoodT(arr, keys) {
+  if (!arr || !arr.length) return 0;
+  keys = keys || [];
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const r = arr[i];
+    for (let k = 0; k < keys.length; k++) {
+      if (Number.isFinite(r[keys[k]])) return r.t;
+    }
+  }
+  return 0;
+}
+function isStale(arr, maxAge, keys) {
+  const t = keys && keys.length ? lastGoodT(arr, keys) : lastT(arr);
+  return !t || (Date.now() - t > maxAge);
 }
 
 function mixSignal(outer) {
@@ -182,7 +196,7 @@ async function collect(kind, signal) {
     series.plasma = mergeRows(series.plasma, plasma);
     src.mag = mag.length ? "KNMI" : src.mag;
     src.plasma = plasma.length ? "KNMI" : src.plasma;
-    if (isStale(series.mag, 10 * 60000) || isStale(series.plasma, 10 * 60000)) {
+    if (isStale(series.mag, 10 * 60000, ["bt", "bz_gsm"]) || isStale(series.plasma, 10 * 60000, ["speed", "density"])) {
       const sum = await noaaSummary(signal);
       if (sum.mag && sum.mag.length) {
         series.mag = mergeRows(series.mag, sum.mag);

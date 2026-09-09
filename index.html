@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>SpaceWx TEST</title>
+<!-- ee394b1 At Earth label horizontal -->
 <style>
 :root{--bg:#070b12;--card:#121826;--line:#2a3650;--text:#eef3ff;--muted:#8b97b3;--acc:#5eead4;--ok:#34d399;--bad:#f87171;--rail:#0b1220}
 *{box-sizing:border-box}
@@ -49,9 +50,9 @@ td.kp-pred{opacity:.78}
 #hemiPlot{position:absolute;inset:0;width:100%;height:100%;display:block}
 .hemicard h2{text-align:center;letter-spacing:.14em;font-weight:650;color:#d7deee}
 .hemilegs{display:grid;grid-template-columns:1fr;gap:0;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.hemilegs .row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(5.4rem,auto) minmax(5.8rem,auto);gap:8px;align-items:center;background:#0b1220;padding:9px 10px;font-size:13px;color:#c5d0e6;border-top:1px solid var(--line)}
+.hemilegs .row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(7.2rem,auto) minmax(5.8rem,auto);gap:8px;align-items:center;background:#0b1220;padding:9px 10px;font-size:13px;color:#c5d0e6;border-top:1px solid var(--line)}
 .hemilegs .row:first-child{border-top:0}
-.hemilegs .head{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 10px}
+.hemilegs .head{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 10px;white-space:normal;line-height:1.25}
 .hemilegs .head span:not(:first-child),.hemilegs .row b{justify-self:end;text-align:center}
 .hpbadge{display:inline-block;min-width:4.4rem;text-align:center;padding:4px 8px;border-radius:999px;font-weight:800;color:#070b12;background:#4ade80;font-variant-numeric:tabular-nums;font-size:12px}
 #hemiPlotNote{margin-top:8px;font-size:11px}
@@ -62,7 +63,8 @@ a.imglink{display:block;cursor:zoom-in}
 a.imglink img{cursor:zoom-in}
 canvas.chart{height:210px;background:#0a0e18}
 .muted{color:var(--muted);font-size:12px}
-.ok{color:var(--ok)}.down{color:var(--bad)}
+.kpi b.down,.muted.down,#kpForecast.down{color:var(--bad);font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}
+.card img{max-height:min(70vh,560px);object-fit:contain;background:#000}
 .player{display:flex;gap:8px;align-items:center;margin-top:8px}
 .player button{background:#101827;color:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer;min-height:40px}
 .player input{flex:1;min-width:0;height:32px}
@@ -96,9 +98,17 @@ th:first-child,td:first-child{text-align:left}
   .hemilegs .head span:first-child{display:none}
   .hemilegs .head span,.hemilegs .row b{justify-self:stretch}
 }
-@media(max-width:420px){
-  .kpis-4{grid-template-columns:1fr}
-  .kpi b,.dstpair b{font-size:20px}
+@media(max-width:560px){
+  .kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dstpair{grid-template-columns:1fr}
+  .player{flex-wrap:wrap}
+  .mapbox{min-height:180px}
+  #swPlot{height:300px}
+  .hemiwrap{min-height:200px}
+  header{row-gap:4px}
+}
+@media(max-width:380px){
+  .kpis-4,.kpis-6{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -159,7 +169,7 @@ th:first-child,td:first-child{text-align:left}
         <h2>Hemispheric Power</h2>
         <div class="hemiwrap"><canvas id="hemiPlot"></canvas></div>
         <div class="hemilegs">
-          <div class="row head"><span></span><span>At Earth</span><span>At L1 Now</span></div>
+          <div class="row head"><span></span><span id="hemiEarthHdr">At Earth</span><span>At L1 Now</span></div>
           <div class="row"><span>Northern hemisphere</span><b id="hemiNEarth" class="hpbadge">-</b><b id="hemiNL1" class="hpbadge">-</b></div>
           <div class="row"><span>Southern hemisphere</span><b id="hemiSEarth" class="hpbadge">-</b><b id="hemiSL1" class="hpbadge">-</b></div>
         </div>
@@ -167,19 +177,44 @@ th:first-child,td:first-child{text-align:left}
       </div>
       <div class="card"><h2>Solar Wind · KNMI HAPI</h2><canvas id="swPlot"></canvas><div class="muted" id="swStatus">last 36 hours + 1h pad · hourly</div></div>
     </div>
-    <div class="card"><h2>WSA-Enlil</h2><img id="enlil" alt="enlil"><div class="player"><button type="button" id="enlilPlay">Play</button><input id="enlilScrub" type="range" min="0" max="0" value="0"><span class="muted" id="enlilStamp"></span></div></div>
-    <div class="card"><h2>WAM-IPE · TEC nowcast</h2><a class="imglink" id="wamIpeA" target="_blank" rel="noopener noreferrer"><img id="wamIpe" alt="WAM-IPE"></a><div class="muted">NOAA WAM-IPE · NCEP NOMADS</div></div>
-    <div class="card"><h2>Hobart BOM</h2><a class="imglink" id="hobartA" target="_blank" rel="noopener noreferrer"><img id="hobart" alt="Hobart"></a></div>
-    <div class="card"><h2>TGO Europe H</h2><a class="imglink" id="tgoA" target="_blank" rel="noopener noreferrer"><img id="tgo" alt="TGO" referrerpolicy="no-referrer"></a></div>
+    <div class="card"><h2>WSA-Enlil</h2><img id="enlil" alt="enlil"><div class="player"><button type="button" id="enlilPlay">Play</button><input id="enlilScrub" type="range" min="0" max="0" value="0"><span class="muted" id="enlilStamp"></span></div><div class="muted" id="enlilNote"></div></div>
+    <div class="card"><h2>WAM-IPE · TEC nowcast</h2><a class="imglink" id="wamIpeA" target="_blank" rel="noopener noreferrer"><img id="wamIpe" alt="WAM-IPE"></a><div class="muted" id="wamNote">NOAA WAM-IPE · NCEP NOMADS</div></div>
+    <div class="card"><h2>Hobart BOM</h2><a class="imglink" id="hobartA" target="_blank" rel="noopener noreferrer"><img id="hobart" alt="Hobart"></a><div class="muted" id="hobartNote"></div></div>
+    <div class="card"><h2>TGO Europe H</h2><a class="imglink" id="tgoA" target="_blank" rel="noopener noreferrer"><img id="tgo" alt="TGO" referrerpolicy="no-referrer"></a><div class="muted" id="tgoNote"></div></div>
   </div>
 </main>
 </div>
 <script>
 const DEFAULT={zip:"",lat:30.02449,lon:-97.9072,place:"30.02449, -97.90720",tz:"America/Chicago",pollSec:60};
-const HOURS=2.5;
 function loadCfg(){try{return Object.assign({},DEFAULT,JSON.parse(localStorage.getItem("spacewx-cfg")||"{}"))}catch(e){return Object.assign({},DEFAULT)}}
 const cfg=loadCfg();
 const cache={wind:[],mag:[],goes:[],dst:[],dstPred:[],hp30:[],kp:[]};
+const DOWN="Data Feed Down";
+function setDown(el){if(!el)return;el.textContent=DOWN;el.className="down"}
+function applyHealth(h){
+  if(!h)return;
+  if(!h.mag){setDown(vBt);setDown(vBz)}
+  if(!h.plasma){setDown(vWind);setDown(vDen)}
+  if(!h.dst) setDown(vDst);
+  if(!h.dstPred) setDown(vDstPred);
+  if(!h.hp) setDown(vHp30);
+  if(!h.kp) setDown(vKp);
+  if(!h.scales) setDown(vRsg);
+  if(!h.aurora){setDown(vAurora);if(mapStatus){mapStatus.textContent=DOWN;mapStatus.className="down"}}
+  if(!h.hemi){
+    ["hemiNEarth","hemiSEarth","hemiNL1","hemiSL1"].forEach(function(id){setDown(document.getElementById(id))});
+    const n=document.getElementById("hemiPlotNote"); if(n){n.textContent=DOWN;n.className="down"}
+  }
+  if(!h.forecast){const el=document.getElementById("kpForecast"); if(el&&(el.textContent==="-"||!el.querySelector("table"))){el.textContent=DOWN;el.className="down"}}
+  const nOk=[h.mag,h.plasma,h.dst,h.hemi,h.hp,h.kp,h.aurora,h.scales].filter(Boolean).length;
+  feedStatus.textContent=nOk>=6?"live":nOk?"partial":DOWN;
+  feedStatus.className=nOk>=6?"ok":nOk?"muted":"down";
+  if(h.magSrc||h.plasmaSrc) imfStatus.textContent=h.magSrc||h.plasmaSrc;
+  if(swStatus){
+    if(h.mag||h.plasma){swStatus.textContent=(h.magSrc||"KNMI")+" · last 36h + 1h pad";swStatus.className="muted"}
+    else {swStatus.textContent=DOWN;swStatus.className="down"}
+  }
+}
 async function grab(u){const r=await fetch(u,{cache:"no-cache"});if(!r.ok) throw new Error(String(r.status));const ct=r.headers.get("content-type")||"";return (ct.includes("json")||u.endsWith(".json"))?r.json():r.text()}
 async function settled(u){try{return await grab(u)}catch(e){return null}}
 const last=a=>Array.isArray(a)&&a.length?a[a.length-1]:{};
@@ -257,7 +292,7 @@ function drawHemiPlot(){
   el.width=Math.round(cssW*dpr); el.height=Math.round(cssH*dpr);
   const ctx=el.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle="#0b1220"; ctx.fillRect(0,0,cssW,cssH);
-  const L=50,R=10,T=10,B=24, pw=cssW-L-R, ph=cssH-T-B;
+  const L=50,R=10,T=22,B=24, pw=cssW-L-R, ph=cssH-T-B;
   const now=Date.now(), STEP=5*60000, nSlots=72, HOLD=17.5, BLUE="#38bdf8";
   const latest=hemiSeries.length?hemiSeries[hemiSeries.length-1]:null;
   const stale=!latest || (now-(latest.obs||latest.fcst)>15*60000);
@@ -277,6 +312,11 @@ function drawHemiPlot(){
     ctx.beginPath(); ctx.moveTo(L,Math.round(yAt(v))+0.5); ctx.lineTo(L+pw,Math.round(yAt(v))+0.5); ctx.stroke();
   });
   const barW=pw/(1.5*nSlots-0.5), gap=barW*0.5;
+  function xEarth(t){
+    if(!latest) return L+pw;
+    const i=(nSlots-1)-((latest.fcst-t)/STEP);
+    return L+Math.max(-0.5,Math.min(nSlots-0.5,i))*(barW+gap)+barW/2;
+  }
   const bins=new Array(nSlots);
   if(!stale){
     hemiSeries.forEach(function(r){
@@ -295,7 +335,7 @@ function drawHemiPlot(){
     ctx.fillStyle=live?hpBarColor(s):BLUE;
     ctx.fillRect(x, Math.round(y0), barW, Math.max(1,Math.round(yAt(-s))-Math.round(y0)));
   }
-  const nx=Math.min(L+pw-1,Math.max(L,xAt(now)));
+  const nx=Math.min(L+pw-1,Math.max(L,xEarth(now)));
   ctx.fillStyle="rgba(238,243,255,0.04)"; ctx.fillRect(nx,T,L+pw-nx,ph);
   ctx.strokeStyle="#eef3ff"; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(Math.round(nx)+0.5,T); ctx.lineTo(Math.round(nx)+0.5,T+ph); ctx.stroke();
@@ -309,17 +349,20 @@ function drawHemiPlot(){
   ctx.textAlign="center"; ctx.fillStyle="#8b97b3"; ctx.font="10px Segoe UI,system-ui,sans-serif";
   ctx.fillText("Gigawatt", 0, 0);
   ctx.restore();
-  ctx.save();
-  ctx.translate(Math.round(nx)+8, T+8); ctx.rotate(Math.PI/2);
-  ctx.fillStyle="#eef3ff"; ctx.font="700 10px Segoe UI,system-ui,sans-serif"; ctx.textAlign="left";
-  ctx.fillText("At Earth", 0, 0);
-  ctx.restore();
+  const earthLbl="At Earth ("+String(new Date(now).getUTCHours()).padStart(2,"0")+":"+String(new Date(now).getUTCMinutes()).padStart(2,"0")+" UTC)";
+  const hdr=document.getElementById("hemiEarthHdr"); if(hdr) hdr.textContent=earthLbl;
+  ctx.fillStyle="#eef3ff"; ctx.font="700 10px Segoe UI,system-ui,sans-serif";
+  ctx.textAlign=nx>L+pw-110?"right":"center";
+  ctx.fillText(earthLbl, nx, T-6);
   ctx.fillStyle="#8b97b3"; ctx.font="10px Segoe UI,system-ui,sans-serif";
   const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const startH=new Date(t0); startH.setUTCMinutes(0,0,0); startH.setUTCHours(startH.getUTCHours()+1);
+  const startH=new Date(latest?latest.fcst-nSlots*STEP:now-nSlots*STEP); startH.setUTCMinutes(0,0,0);
+  startH.setUTCHours(startH.getUTCHours()+1);
   ctx.textAlign="center";
-  for(let t=startH.getTime(); t<=t1; t+=3600000){
-    const dt=new Date(t), x=xAt(t);
+  const tRight=latest?latest.fcst:now;
+  for(let t=startH.getTime(); t<=tRight; t+=3600000){
+    const dt=new Date(t), x=xEarth(t);
+    if(x<L-4||x>L+pw+4) continue;
     ctx.strokeStyle="#2a3650";
     ctx.beginPath(); ctx.moveTo(Math.round(x)+0.5,T+ph); ctx.lineTo(Math.round(x)+0.5,T+ph+4); ctx.stroke();
     const label=(dt.getUTCHours()===0)?(dt.getUTCDate()+" "+months[dt.getUTCMonth()]):(String(dt.getUTCHours()).padStart(2,"0")+":00");
@@ -424,28 +467,7 @@ function renderKpForecast(kf){
   kpForecast.innerHTML=html+"</table>";
 }
 function bust(u){return u+(u.includes("?")?"&":"?")+"t="+Date.now()}
-function sample(arr,n){if(!arr.length)return arr;const step=Math.max(1,Math.floor(arr.length/n));return arr.filter((_,i)=>i%step===0)}
 function parseT(t){let s=String(t||"").trim().replace(" ","T");if(!s)return NaN;s=s.replace(/\.(\d{3})\d+/,".$1");if(!/[zZ]|[+\-]\d{2}:?\d{2}$/.test(s))s+="Z";const ms=Date.parse(s);return isFinite(ms)?ms:NaN}
-function sliceHours(rows){const cut=Date.now()-HOURS*3600*1000;return (rows||[]).filter(r=>parseT(r.time_tag)>=cut)}
-function rtswActive(rows){return (Array.isArray(rows)?rows:[]).filter(r=>r&&r.active===true).sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
-function chart(canvas,series,unit){
-  if(!canvas)return;
-  const w=canvas.width=Math.max(480,Math.floor(canvas.clientWidth*2)||480);
-  const h=canvas.height=420,ctx=canvas.getContext("2d");
-  const left=54,R=12,T=12,B=28,pw=w-left-R,ph=h-T-B;
-  ctx.fillStyle="#0a0e18";ctx.fillRect(0,0,w,h);
-  const all=[];series.forEach(s=>s.y.forEach(v=>{if(isFinite(v))all.push(v)}));
-  if(!all.length){ctx.fillStyle="#8b97b3";ctx.fillText("no data",left,h/2);return}
-  let ymin=Math.min(...all),ymax=Math.max(...all);if(ymin===ymax){ymin-=1;ymax+=1}
-  const pad=(ymax-ymin)*0.12;ymin-=pad;ymax+=pad;
-  const yAt=v=>T+ph-(v-ymin)/(ymax-ymin)*ph;
-  ctx.strokeStyle="#243044";ctx.fillStyle="#8b97b3";ctx.font="14px sans-serif";ctx.textAlign="right";
-  for(let i=0;i<=4;i++){const v=ymin+(ymax-ymin)*i/4,y=yAt(v);ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-R,y);ctx.stroke();ctx.fillText(v.toFixed(Math.abs(ymax-ymin)<10?1:0),left-6,y+4)}
-  ctx.save();ctx.translate(14,T+ph/2);ctx.rotate(-Math.PI/2);ctx.textAlign="center";ctx.fillText(unit||"nT",0,0);ctx.restore();
-  ctx.textAlign="left";ctx.fillText("-2.5h",left,h-8);ctx.textAlign="right";ctx.fillText("now",w-R,h-8);
-  if(ymin<0&&ymax>0){ctx.strokeStyle="#445067";ctx.beginPath();ctx.moveTo(left,yAt(0));ctx.lineTo(w-R,yAt(0));ctx.stroke()}
-  series.forEach(s=>{ctx.strokeStyle=s.color;ctx.lineWidth=2;ctx.beginPath();s.y.forEach((v,i)=>{if(!isFinite(v))return;const x=left+i/Math.max(1,s.y.length-1)*pw,y=yAt(v);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});
-}
 function parseHapiCsv(text,keys){
   const out=[];
   String(text||"").split(/\n/).forEach(function(line){
@@ -472,19 +494,41 @@ function isoH(d){return d.toISOString().replace(/\.\d{3}Z$/,"Z")}
 const hapiPack={xray:[],prot:[],mag:[],plasma:[],enlil:[],kp:[],hp:[],kpf:[],dst:[]};
 function drawWindImf(){
   const m=hapiPack.mag,p=hapiPack.plasma,lm=last(m),lp=last(p);
-  vWind.textContent=isFinite(lp.speed)?Math.round(lp.speed)+" km/s":"-";
-  tone(vWind,"speed",lp.speed);
-  vDen.textContent=isFinite(lp.density)?Number(lp.density).toFixed(1)+" p/cm3":"-";
-  tone(vDen,"density",lp.density);
-  vBt.textContent=isFinite(lm.bt)?Number(lm.bt).toFixed(1)+" nT":"-";
-  tone(vBt,"bt",lm.bt);
-  vBz.textContent=isFinite(lm.bz_gsm)?Number(lm.bz_gsm).toFixed(1)+" nT":"-";
-  tone(vBz,"bz",lm.bz_gsm);
-  const hpv=Number(last(hapiPack.hp).Hp30);
-  if(isFinite(hpv)){vHp30.textContent=hpv.toFixed(1);tone(vHp30,"hp",hpv)}
+  if(isFinite(lp.speed)){vWind.textContent=Math.round(lp.speed)+" km/s";tone(vWind,"speed",lp.speed)}
+  if(isFinite(lp.density)){vDen.textContent=Number(lp.density).toFixed(1)+" p/cm3";tone(vDen,"density",lp.density)}
+  if(isFinite(lm.bt)){vBt.textContent=Number(lm.bt).toFixed(1)+" nT";tone(vBt,"bt",lm.bt)}
+  if(isFinite(lm.bz_gsm)){vBz.textContent=Number(lm.bz_gsm).toFixed(1)+" nT";tone(vBz,"bz",lm.bz_gsm)}
   drawSw();
 }
 function samp(arr,n){if(!arr||!arr.length)return [];if(arr.length<=n)return arr;const out=[],step=arr.length/n;for(let i=0;i<n;i++)out.push(arr[Math.min(arr.length-1,Math.floor(i*step))]);return out}
+const IMF_SCALES=[10,15,20,25,30,40,50,75,100];
+function imfScale(peak){const p=Math.max(0,peak||0);for(let i=0;i<IMF_SCALES.length;i++) if(p<=IMF_SCALES[i]) return IMF_SCALES[i];return 100}
+const SPEED_SCALES=[400,500,600,700,800,900,1000,1200,1500,2000];
+function speedScale(peak){const p=Math.max(0,peak||0);for(let i=0;i<SPEED_SCALES.length;i++) if(p<=SPEED_SCALES[i]) return SPEED_SCALES[i];return 2000}
+function speedFloor(lo){if(!isFinite(lo)) return 200; if(lo>=400) return 400; if(lo>=350) return 350; if(lo>=300) return 300; if(lo>=250) return 250; return 200}
+function speedRange(t0,t1){
+  let lo=Infinity, hi=0;
+  (hapiPack.plasma||[]).forEach(function(r){
+    if(!isFinite(r.t)||r.t<t0||r.t>t1||!isFinite(r.speed)) return;
+    if(r.speed<lo) lo=r.speed;
+    if(r.speed>hi) hi=r.speed;
+  });
+  if(!isFinite(lo)) return {ymin:200,ymax:800};
+  const ymax=speedScale(hi), ymin=Math.min(speedFloor(lo), ymax-200);
+  return {ymin:ymin, ymax:Math.max(ymax, ymin+200)};
+}
+function imfPeak(t0,t1){
+  let p=0;
+  function consider(rows,keys){
+    (rows||[]).forEach(function(r){
+      if(!isFinite(r.t)||r.t<t0||r.t>t1) return;
+      keys.forEach(function(k){const v=Math.abs(r[k]); if(isFinite(v)&&v>p) p=v});
+    });
+  }
+  consider(hapiPack.mag,["bt","bz_gsm","by_gsm","bx_gsm"]);
+  consider(hapiPack.enlil,["bt"]);
+  return p;
+}
 function drawSw(){
   const el=document.getElementById("swPlot"); if(!el)return;
   const now=Date.now(),t0=now-36*3600000,t1=now+3600000;
@@ -494,15 +538,18 @@ function drawSw(){
   ctx.fillStyle="#0b1220";ctx.fillRect(0,0,cssW,cssH);
   const L=cssW<500?40:70,R=12,pw=cssW-L-R,span=t1-t0,xAt=t=>L+((t-t0)/span)*pw;
   const scale=cssH/520;
-  const panels=[{title:"IMF nT",log:0,ymin:-20,ymax:20,h:Math.round(200*scale)},{title:"Speed km/s",log:0,ymin:200,ymax:900,h:Math.round(130*scale)},{title:"Hp30",log:0,ymin:0,ymax:9,h:Math.round(110*scale)}];
+  const mag=imfScale(imfPeak(t0,t1));
+  const spd=speedRange(t0,t1);
+  const panels=[{title:"IMF nT",log:0,ymin:-mag,ymax:mag,h:Math.round(200*scale)},{title:"Speed km/s",log:0,ymin:spd.ymin,ymax:spd.ymax,h:Math.round(130*scale)},{title:"Hp30",log:0,ymin:0,ymax:9,h:Math.round(110*scale)}];
   let yCursor=8;
   function yAt(y0,ph,ymin,ymax,log,v){if(log){const a=Math.log10(Math.max(ymin,v)),b=Math.log10(ymin),c=Math.log10(ymax)-b;return y0+ph-((a-b)/c)*ph}return y0+ph-((v-ymin)/(ymax-ymin))*ph}
   function frame(p){
-    const y0=yCursor; yCursor+=p.h+4;
+    const y0=yCursor; yCursor+=p.h+12;
     ctx.fillStyle="#070b12";ctx.fillRect(L,y0,pw,p.h);ctx.strokeStyle="#1e293b";ctx.strokeRect(L,y0,pw,p.h);
     ctx.fillStyle="#8b97b3";ctx.save();ctx.translate(14,y0+p.h/2);ctx.rotate(-Math.PI/2);ctx.textAlign="center";ctx.font="11px sans-serif";ctx.fillText(p.title,0,0);ctx.restore();
     ctx.textAlign="right";ctx.font="10px sans-serif";
-    for(let g=0;g<=2;g++){const f=g/2,v=p.log?Math.pow(10,Math.log10(p.ymin)+f*(Math.log10(p.ymax)-Math.log10(p.ymin))):p.ymin+f*(p.ymax-p.ymin),y=y0+p.h-f*p.h;ctx.strokeStyle="#1e293b";ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();ctx.fillStyle="#8b97b3";ctx.fillText(p.log?v.toExponential(0):String(Math.round(v*10)/10),L-4,y+3)}
+    const steps=p.ymin<0?4:2;
+    for(let g=0;g<=steps;g++){const f=g/steps,v=p.log?Math.pow(10,Math.log10(p.ymin)+f*(Math.log10(p.ymax)-Math.log10(p.ymin))):p.ymin+f*(p.ymax-p.ymin),y=y0+p.h-f*p.h;ctx.strokeStyle="#1e293b";ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();ctx.fillStyle="#8b97b3";ctx.fillText(p.log?v.toExponential(0):String(Math.round(v*10)/10),L-4,y+3)}
     const nx=xAt(now);ctx.strokeStyle="#5eead4";ctx.globalAlpha=0.35;ctx.beginPath();ctx.moveTo(nx,y0);ctx.lineTo(nx,y0+p.h);ctx.stroke();ctx.globalAlpha=1;
     return y0;
   }
@@ -520,31 +567,26 @@ function drawSw(){
 function drawDst(){
   const d=Number(last(cache.dst).dst);
   const p=Number(last(cache.dstPred||[]).dst);
-  vDst.textContent=isFinite(d)?Math.round(d)+" nT":"-";
-  tone(vDst,"dst",d);
+  if(isFinite(d)){vDst.textContent=Math.round(d)+" nT";tone(vDst,"dst",d)}
   const pred=document.getElementById("vDstPred");
-  if(pred){pred.textContent=isFinite(p)?Math.round(p)+" nT":"-";tone(pred,"dst",p)}
+  if(pred&&isFinite(p)){pred.textContent=Math.round(p)+" nT";tone(pred,"dst",p)}
 }
-function drawHp30(){const d=Number(last(cache.hp30).hp30);if(isFinite(d)){vHp30.textContent=d.toFixed(1);tone(vHp30,"hp",d)}else vHp30.textContent="-"}
+function drawHp30(){
+  let d=Number(last(cache.hp30).hp30);
+  if(!isFinite(d)) d=Number(last(hapiPack.hp).Hp30);
+  if(isFinite(d)){vHp30.textContent=d.toFixed(1);tone(vHp30,"hp",d)}
+}
 function drawAll(){drawWindImf();drawHemiPlot()}
 async function loadWindImf(){
   const now=new Date(),start=isoH(new Date(now.getTime()-36*3600000)),stop=isoH(new Date(now.getTime()+3600000));
-  const [xray,prot,mag,plasma,enlil,kp,hp,kpf,dst]=await Promise.all([
-    hapi("xray_flux_rt","xray_flux_long,xray_flux_short",start,stop),
-    hapi("proton_flux_500_rt","proton_flux_10MeV,proton_flux_50MeV,proton_flux_100MeV,proton_flux_500MeV",start,stop),
+  const [mag,plasma,enlil,hp]=await Promise.all([
     hapi("solar_wind_mag_rt","bt,bx_gsm,by_gsm,bz_gsm",start,stop),
     hapi("solar_wind_plasma_rt","density,speed,temperature",start,stop),
     hapi("solar_wind_plasma_enlil_metoffice","density,speed,bt",start,stop),
-    hapi("kp_index","Kp",start,stop),
-    hapi("hp30_index","Hp30",start,stop),
-    hapi("kp_index_noaa_geomag_forecast","kp_index",start,stop),
-    hapi2("https://iswa.gsfc.nasa.gov/IswaSystemWebApp/hapi","dst_quicklook","Dst",start,stop)
+    hapi("hp30_index","Hp30",start,stop)
   ]);
-  hapiPack.xray=xray;hapiPack.prot=prot;hapiPack.mag=mag;hapiPack.plasma=plasma;hapiPack.enlil=enlil;hapiPack.kp=kp;hapiPack.hp=hp;hapiPack.kpf=kpf;hapiPack.dst=dst;
-  const lm=last(mag);
-  imfStatus.textContent=mag.length?("KNMI "+new Date(lm.t).toISOString().slice(0,16)+"Z"):"HAPI down";
-  if(swStatus) swStatus.textContent="KNMI HAPI live · last 36h + 1h pad · hourly";
-  drawWindImf();
+  hapiPack.mag=mag;hapiPack.plasma=plasma;hapiPack.enlil=enlil;hapiPack.hp=hp;
+  drawWindImf();drawHp30();
   markUpdated();
 }
 async function loadWx(){
@@ -565,23 +607,30 @@ async function loadWx(){
   if(Array.isArray(dstPred)){cache.dstPred=dstPred.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
   if(Array.isArray(dst)||Array.isArray(dstPred)) drawDst();
   if(hemi) applyHemi(hemi);
-  const ok=[kp,sc,kf,dst,hemi].filter(Boolean).length;feedStatus.textContent=ok>=4?"live":ok?"partial":"DOWN";feedStatus.className=ok>=4?"ok":ok?"muted":"down";drawSw();
+  drawSw();
 }
-async function loadGoes(){}
 async function loadHp30(){
   const txt=await settled("./hp30.txt");
   if(!txt)return;
   const rows=[];String(txt).split(/\n/).forEach(line=>{if(!line||line.startsWith("#"))return;const p=line.trim().split(/\s+/);if(p.length<8)return;const hp=Number(p[7]);if(!isFinite(hp)||hp<0)return;const y=+p[0],mo=+p[1],d=+p[2],h=+p[3];rows.push({time_tag:new Date(Date.UTC(y,mo-1,d,Math.floor(h),Math.round((h%1)*60))).toISOString(),hp30:hp})});
   if(rows.length){cache.hp30=rows;drawHp30()}
 }
+function armImg(img, note, okText){
+  if(!img) return;
+  img.onload=function(){img.style.opacity="1"; if(note){note.textContent=okText||""; note.className="muted"}};
+  img.onerror=function(){img.style.opacity=".2"; if(note){note.textContent=DOWN; note.className="down"}};
+}
 function loadImgs(){
   const H="https://www.sws.bom.gov.au/Images/Geophysical/Latest%20Conditions/Magnetograms/Hobart.gif";
   const T="https://flux.phys.uit.no/cgi-bin/mkstackplot.cgi?GifOnly&&comp=H&nor=&Sync=&t="+Date.now();
   const W="https://services.swpc.noaa.gov/images/animations/wam-ipe/wrs_ionosphere/latest.png";
+  armImg(hobart, document.getElementById("hobartNote"), "");
+  armImg(tgo, document.getElementById("tgoNote"), "");
+  armImg(wamIpe, document.getElementById("wamNote"), "NOAA WAM-IPE · NCEP NOMADS");
+  armImg(enlil, document.getElementById("enlilNote"), "");
   hobart.src=bust(H); if(hobartA) hobartA.href=H;
   tgo.src=T; if(tgoA) tgoA.href=T;
   if(wamIpe){wamIpe.src=bust(W); if(wamIpeA) wamIpeA.href=W}
-  [hobart,tgo,wamIpe].forEach(img=>{if(img)img.onerror=function(){img.style.display="none"}});
 }
 
 const BASE="https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/export?bbox=-180,-85,180,85&bboxSR=4326&imageSR=4326&size=1600,756&format=png&f=image";
@@ -607,7 +656,7 @@ function drawEarth(){
 }
 async function loadAurora(){
   const o=await settled("https://services.swpc.noaa.gov/json/ovation_aurora_latest.json");
-  if(!o){mapStatus.textContent="aurora overlay unavailable";return}
+  if(!o){setDown(vAurora);mapStatus.textContent=DOWN;mapStatus.className="down";return}
   const coords=o.coordinates||o;
   auroraData=paintOvation(coords);
   let best=0,bestD=1e9;
@@ -641,6 +690,7 @@ function markUpdated(ts){
 function applyWorkerData(data){
   if(!data)return;
   markUpdated(data.fetchedAt||Date.now());
+  if(data.health) applyHealth(data.health);
   if(data.changed===false) return;
   if(data.mag) hapiPack.mag=data.mag;
   if(data.plasma) hapiPack.plasma=data.plasma;
@@ -681,7 +731,7 @@ function applyWorkerData(data){
 tick();drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=20260909p60", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=20260909h1", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

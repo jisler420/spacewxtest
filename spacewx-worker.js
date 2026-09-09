@@ -9,6 +9,8 @@ const NOAA = {
   dstPred: "https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json",
   hemi: "https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt",
   aurora: "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
+  rtswMag: "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json",
+  rtswWind: "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json",
 };
 
 const etag = Object.create(null);
@@ -118,6 +120,33 @@ async function hapi(id, params, start, stop, signal) {
   return parseHapiCsv(txt, params.split(","));
 }
 
+function fromRtswMag(arr) {
+  const cut = Date.now() - 36 * 3600000;
+  return (arr || []).filter(function (r) { return r && r.active !== false; }).map(function (r) {
+    return {
+      t: parseT(r.time_tag),
+      bt: Number(r.bt),
+      bx_gsm: Number(r.bx_gsm),
+      by_gsm: Number(r.by_gsm),
+      bz_gsm: Number(r.bz_gsm),
+    };
+  }).filter(function (r) { return Number.isFinite(r.t) && r.t >= cut; });
+}
+
+function fromRtswWind(arr) {
+  const cut = Date.now() - 36 * 3600000;
+  return (arr || []).filter(function (r) { return r && r.active !== false; }).map(function (r) {
+    return {
+      t: parseT(r.time_tag),
+      density: Number(r.proton_density),
+      speed: Number(r.proton_speed),
+      temperature: Number(r.proton_temperature),
+    };
+  }).filter(function (r) { return Number.isFinite(r.t) && r.t >= cut; });
+}
+
+const src = { mag: "", plasma: "", hp: "", dst: "", kp: "" };
+
 function putIfChanged(out, key, value) {
   if (value == null) return false;
   const fp = fingerprint(value);
@@ -136,7 +165,7 @@ async function collect(kind, signal) {
   const wantSlow = kind === "slow" || kind === "all";
 
   if (wantFast) {
-    const [mag, plasma, dst, hemi] = await Promise.all([
+    const [mag, plasma, dstGot, hemi] = await Promise.all([
       hapi("solar_wind_mag_rt", "bt,bx_gsm,by_gsm,bz_gsm", hapiStart(series.mag), stop, signal),
       hapi("solar_wind_plasma_rt", "density,speed,temperature", hapiStart(series.plasma), stop, signal),
       settled(NOAA.dst, signal),
@@ -144,6 +173,30 @@ async function collect(kind, signal) {
     ]);
     series.mag = mergeRows(series.mag, mag);
     series.plasma = mergeRows(series.plasma, plasma);
+    let dst = dstGot;
+    if (!series.mag.length) {
+      const fb = await settled(NOAA.rtswMag, signal);
+      if (fb && fb.data) {
+        series.mag = fromRtswMag(fb.data);
+        src.mag = series.mag.length ? "NOAA RTSW" : "";
+      }
+    } else src.mag = "KNMI";
+    if (!series.plasma.length) {
+      const fb = await settled(NOAA.rtswWind, signal);
+      if (fb && fb.data) {
+        series.plasma = fromRtswWind(fb.data);
+        src.plasma = series.plasma.length ? "NOAA RTSW" : "";
+      }
+    } else src.plasma = "KNMI";
+    if (!dst || !dst.data) {
+      const fb = await settled("https://iswa.gsfc.nasa.gov/IswaSystemWebApp/hapi/data?id=dst_quicklook&parameters=Dst&time.min=" + isoH(new Date(Date.now() - 48 * 3600000)) + "&time.max=" + stop + "&format=csv", signal);
+      if (fb && fb.data) {
+        const rows = parseHapiCsv(typeof fb.data === "string" ? fb.data : String(fb.data), ["Dst"]).map(function (r) {
+          return { time_tag: new Date(r.t).toISOString(), dst: r.Dst };
+        });
+        if (rows.length) { dst = { data: rows }; src.dst = "ISWA"; }
+      }
+    } else src.dst = "Kyoto";
     if (putIfChanged(out, "mag", series.mag)) changed = true;
     if (putIfChanged(out, "plasma", series.plasma)) changed = true;
     if (dst && putIfChanged(out, "dst", dst.data)) changed = true;
@@ -151,7 +204,7 @@ async function collect(kind, signal) {
   }
 
   if (wantSlow) {
-    const [enlil, hp, kp, sc, kf, dayTxt, dstPred, aurora, hp30txt] = await Promise.all([
+    const [enlil, hp, kpGot, sc, kf, dayTxt, dstPred, aurora, hp30txt] = await Promise.all([
       hapi("solar_wind_plasma_enlil_metoffice", "density,speed,bt", hapiStart(series.enlil), stop, signal),
       hapi("hp30_index", "Hp30", hapiStart(series.hp), stop, signal),
       settled(NOAA.kp, signal),
@@ -164,6 +217,15 @@ async function collect(kind, signal) {
     ]);
     series.enlil = mergeRows(series.enlil, enlil);
     series.hp = mergeRows(series.hp, hp);
+    src.hp = series.hp.length ? "KNMI" : (hp30txt && hp30txt.data ? "GFZ" : "");
+    let kp = kpGot;
+    if (!kp || !kp.data) {
+      const knmiKp = await hapi("kp_index", "Kp", isoH(new Date(Date.now() - 3 * 86400000)), stop, signal);
+      if (knmiKp.length) {
+        kp = { data: knmiKp.map(function (r) { return { time_tag: new Date(r.t).toISOString(), Kp: r.Kp }; }) };
+        src.kp = "KNMI";
+      }
+    } else src.kp = "NOAA";
     if (putIfChanged(out, "enlil", series.enlil)) changed = true;
     if (putIfChanged(out, "hp", series.hp)) changed = true;
     if (kp && putIfChanged(out, "kp", kp.data)) changed = true;
@@ -184,6 +246,23 @@ async function collect(kind, signal) {
   }
 
   out.changed = changed;
+  out.health = {
+    mag: series.mag.length > 0,
+    plasma: series.plasma.length > 0,
+    dst: !!(bodyCache[NOAA.dst] || src.dst),
+    dstPred: !!bodyCache[NOAA.dstPred],
+    hemi: !!bodyCache[NOAA.hemi],
+    hp: series.hp.length > 0 || !!bodyCache["./hp30.txt"],
+    kp: !!(bodyCache[NOAA.kp] || src.kp),
+    scales: !!bodyCache[NOAA.scales],
+    forecast: !!(bodyCache[NOAA.kf] || bodyCache[NOAA.day]),
+    aurora: !!printCache.aurora || !!bodyCache[NOAA.aurora],
+    magSrc: src.mag,
+    plasmaSrc: src.plasma,
+    hpSrc: src.hp,
+    dstSrc: src.dst,
+    kpSrc: src.kp
+  };
   return out;
 }
 

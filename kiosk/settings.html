@@ -14,16 +14,16 @@
 <input id="coords" placeholder="63.27375, 18.61269">
 <label>Data poll interval</label>
 <select id="poll">
-  <option value="30">30 seconds (:00 and :30)</option>
+  <option value="60">60 seconds (every minute :00)</option>
   <option value="300">300 seconds (every 5 minutes)</option>
 </select>
-<p class="muted">Aligned to UTC. 30s = :00 and :30 · 300s = :00, :05, :10…</p>
+<p class="muted">Aligned to UTC. 60s = :00 · 300s = :00, :05, :10…</p>
 <div id="msg" class="muted"></div>
 <button id="save">Save</button>
 <a href="index.html">Back to live</a>
 </main>
 <script>
-const DEFAULT={zip:"",lat:30.02449,lon:-97.9072,place:"30.02449, -97.90720",tz:"America/Chicago",pollSec:30};
+const DEFAULT={zip:"",lat:30.02449,lon:-97.9072,place:"30.02449, -97.90720",tz:"America/Chicago",pollSec:60};
 function tzFrom(lon){
   if(lon<=-155)return "Pacific/Honolulu";
   if(lon<=-130)return "America/Anchorage";
@@ -40,8 +40,8 @@ function load(){try{return Object.assign({},DEFAULT,JSON.parse(localStorage.getI
 const cur=load();
 zip.value=cur.zip||"";
 coords.value=cur.zip?"":(Number(cur.lat).toFixed(5)+", "+Number(cur.lon).toFixed(5));
-poll.value=String([30,300].indexOf(+cur.pollSec)>=0?cur.pollSec:30);
-function pollSec(){const n=+poll.value;return [30,300].indexOf(n)>=0?n:30}
+poll.value=String([60,300].indexOf(+cur.pollSec)>=0?cur.pollSec:60);
+function pollSec(){const n=+poll.value;return [60,300].indexOf(n)>=0?n:60}
 save.onclick=async()=>{
   const raw=(coords.value||"").trim();
   if(raw){

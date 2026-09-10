@@ -8,7 +8,7 @@ const NOAA = {
   dst: "https://services.swpc.noaa.gov/products/kyoto-dst.json",
   dstPred: "https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json",
   hemi: "https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt",
-  hemiSnap: "./data/hemi.txt",
+  hemiSnap: "./data/hemi-archive.txt",
   aurora: "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
   sumMag: "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
   sumSpeed: "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",

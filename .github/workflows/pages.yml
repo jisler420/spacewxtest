@@ -3,8 +3,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "*/5 * * * *"
-    - cron: "50 23 * * *"
+    - cron: "50 * * * *"
   workflow_dispatch:
 permissions:
   contents: write
@@ -28,8 +27,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/hemi.txt kiosk/data/hemi.txt
-          git diff --cached --quiet || git commit -m "hemi-power snapshot (36h rolling)"
+          git add data/hemi-archive.txt kiosk/data/hemi-archive.txt
+          git diff --cached --quiet || git commit -m "hemi-archive snapshot (36h rolling)"
           git push || true
       - name: Stage site
         run: |

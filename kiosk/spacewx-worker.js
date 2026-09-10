@@ -8,6 +8,7 @@ const NOAA = {
   dst: "https://services.swpc.noaa.gov/products/kyoto-dst.json",
   dstPred: "https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json",
   hemi: "https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt",
+  hemiSnap: "./data/hemi.txt",
   aurora: "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
   sumMag: "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
   sumSpeed: "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
@@ -233,7 +234,7 @@ async function collect(kind, signal) {
   }
 
   if (wantSlow) {
-    const [enlil, hp, kpGot, sc, kf, dayTxt, dstPred, hemi, hp30txt] = await Promise.all([
+    const [enlil, hp, kpGot, sc, kf, dayTxt, dstPred, hemi, hemiSnap, hp30txt] = await Promise.all([
       hapi("solar_wind_plasma_enlil_metoffice", "density,speed,bt", hapiStart(series.enlil), stop, signal),
       hapi("hp30_index", "Hp30", hapiStart(series.hp), stop, signal),
       settled(NOAA.kp, signal),
@@ -242,6 +243,7 @@ async function collect(kind, signal) {
       settled(NOAA.day, signal),
       settled(NOAA.dstPred, signal),
       settled(NOAA.hemi, signal),
+      settled(NOAA.hemiSnap, signal),
       settled("./hp30.txt", signal),
     ]);
     series.enlil = mergeRows(series.enlil, enlil);
@@ -262,6 +264,7 @@ async function collect(kind, signal) {
     if (kf && putIfChanged(out, "kf", kf.data)) changed = true;
     if (dayTxt && putIfChanged(out, "dayTxt", dayTxt.data)) changed = true;
     if (dstPred && putIfChanged(out, "dstPred", dstPred.data)) changed = true;
+    if (hemiSnap && putIfChanged(out, "hemiSnap", hemiSnap.data)) changed = true;
     if (hemi && putIfChanged(out, "hemi", hemi.data)) changed = true;
     if (hp30txt && putIfChanged(out, "hp30txt", hp30txt.data)) changed = true;
   }
@@ -272,7 +275,7 @@ async function collect(kind, signal) {
     plasma: series.plasma.length > 0,
     dst: !!(bodyCache[NOAA.dst] || src.dst),
     dstPred: !!bodyCache[NOAA.dstPred],
-    hemi: !!bodyCache[NOAA.hemi],
+    hemi: !!bodyCache[NOAA.hemi] || !!bodyCache[NOAA.hemiSnap],
     hp: series.hp.length > 0 || !!bodyCache["./hp30.txt"],
     kp: !!(bodyCache[NOAA.kp] || src.kp),
     scales: !!bodyCache[NOAA.scales],

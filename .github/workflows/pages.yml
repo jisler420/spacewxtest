@@ -2,9 +2,12 @@ name: GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "25 * * * *"
+    - cron: "50 23 * * *"
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
@@ -18,11 +21,32 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Stage kiosk as site root
+      - name: Merge NOAA hemi-power snapshot (36h)
+        run: python3 scripts/merge_hemi.py
+      - name: Commit snapshot
+        if: github.event_name == 'schedule'
         run: |
-          mkdir -p _site
-          cp -a kiosk/. _site/
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/hemi.txt kiosk/data/hemi.txt
+          git diff --cached --quiet || git commit -m "hemi-power snapshot (36h rolling)"
+          git push || true
+      - name: Stage site
+        run: |
+          mkdir -p _site/kiosk _site/data _site/kiosk/data
+          cp index.html _site/index.html
+          cp index.html _site/live.html
+          cp index.html _site/kiosk/index.html
+          cp index.html _site/kiosk/live.html
+          cp spacewx-worker.js _site/spacewx-worker.js
+          cp spacewx-worker.js _site/kiosk/spacewx-worker.js
+          cp settings.html _site/settings.html
+          cp -a data/. _site/data/
+          cp -a data/. _site/kiosk/data/
+          cp -a experimental/. _site/experimental/ 2>/dev/null || true
+          cp favicon.ico favicon.svg _site/ 2>/dev/null || true
           curl -fsSL https://kp.gfz.de/fileadmin/files_for_gfz_cms/Hp30_ap30_nowcast.txt -o _site/hp30.txt || true
+          cp _site/hp30.txt _site/kiosk/hp30.txt 2>/dev/null || true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

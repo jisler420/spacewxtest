@@ -1,7 +1,7 @@
 #Aurora Hemispheric Power Tabular Values
 # Product: Ovation Aurora Short Term Forecast    http://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt
 # Timestamp is the valid time of a 30 minute forecast
-# This file contains data for 2026-09-09
+# This file contains data for 2026-09-10
 #
 # Prepared by the U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center.
 # Please send comments and suggestions to SWPC.CustomerSupport@noaa.gov
@@ -170,3 +170,12 @@
 2026-09-09_12:45    2026-09-09_13:40      31      33
 2026-09-09_12:50    2026-09-09_13:46      32      34
 2026-09-09_12:55    2026-09-09_13:51      33      35
+2026-09-10_00:00    2026-09-10_00:56      26      27
+2026-09-10_00:05    2026-09-10_01:00      27      28
+2026-09-10_00:10    2026-09-10_01:05      28      29
+2026-09-10_00:15    2026-09-10_01:10      29      30
+2026-09-10_00:20    2026-09-10_01:15      29      31
+2026-09-10_00:25    2026-09-10_01:20      29      30
+2026-09-10_00:30    2026-09-10_01:25      28      30
+2026-09-10_00:35    2026-09-10_01:30      28      30
+2026-09-10_00:40    2026-09-10_01:35      29

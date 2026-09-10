@@ -219,14 +219,15 @@ function setDown(el){if(!el||hasValue(el))return;el.textContent=DOWN;el.classNam
 function applyHealth(h){
   if(!h)return;
   const nOk=[h.mag,h.plasma,h.dst,h.hemi,h.hp,h.kp,h.aurora,h.scales].filter(Boolean).length;
-  feedStatus.textContent=nOk>=6?"live":nOk?"partial":DOWN;
-  feedStatus.className=nOk>=6?"ok":nOk?"muted":"down";
+  const fs=document.getElementById("feedStatus");
+  if(fs){fs.textContent=nOk>=6?"live":nOk?"partial":DOWN;fs.className=nOk>=6?"ok":nOk?"muted":"down"}
   const bits=[];
   if(h.magSrc) bits.push(h.magSrc);
   if(h.plasmaSrc&&h.plasmaSrc!==h.magSrc) bits.push(h.plasmaSrc);
   if(h.kpSrc) bits.push("Kp "+h.kpSrc);
   if(h.dstSrc) bits.push("Dst "+h.dstSrc);
-  if(imfStatus) imfStatus.textContent=bits.join(" · ");
+  const imfEl=document.getElementById("imfStatus");
+  if(imfEl) imfEl.textContent=bits.join(" · ");
   if(swStatus){
     if(h.mag||h.plasma){swStatus.textContent=(h.magSrc||"KNMI")+" · last 36h + 1h pad";swStatus.className="muted"}
     else if(!hasValue(vWind)){swStatus.textContent=DOWN;swStatus.className="down"}
@@ -895,7 +896,7 @@ try{
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}
-    if(e.data&&e.data.type==="error"&&e.data.fails>=3){feedStatus.textContent="partial";feedStatus.className="muted"}
+    if(e.data&&e.data.type==="error"&&e.data.fails>=3){const fs=document.getElementById("feedStatus"); if(fs){fs.textContent="partial";fs.className="muted"}}
   };
   wxWorker.onerror=function(){workerOk=false;wxWorker=null};
   wxWorker.postMessage({type:"config",pollSec:cfg.pollSec||60,hidden:document.hidden});

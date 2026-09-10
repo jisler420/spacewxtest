@@ -137,7 +137,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="hdr-right">
     <div class="muted" id="utc">UTC</div>
     <div class="muted" id="local">Local</div>
-    <nav><a href="index.html">Live</a> · <a href="experimental/">Experimental</a> · <a href="settings.html">Settings</a> · <span id="feedStatus" class="muted">checking</span> <span id="imfStatus" class="muted"></span></nav>
+    <nav><a href="index.html">Live</a> · <a href="settings.html">Settings</a></nav>
   </div>
 </header>
 <script>
@@ -230,8 +230,8 @@ function setDown(el){if(!el||hasValue(el))return;el.textContent=DOWN;el.classNam
 function applyHealth(h){
   if(!h)return;
   const nOk=[h.mag,h.plasma,h.dst,h.hemi,h.hp,h.kp,h.aurora,h.scales].filter(Boolean).length;
-  feedStatus.textContent=nOk>=6?"live":nOk?"partial":DOWN;
-  feedStatus.className=nOk>=6?"ok":nOk?"muted":"down";
+  const fs=document.getElementById("feedStatus");
+  if(fs){fs.textContent=nOk>=6?"live":nOk?"partial":DOWN;fs.className=nOk>=6?"ok":nOk?"muted":"down"}
   const bits=[];
   if(h.magSrc) bits.push(h.magSrc);
   if(h.plasmaSrc&&h.plasmaSrc!==h.magSrc) bits.push(h.plasmaSrc);
@@ -937,7 +937,7 @@ try{
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}
-    if(e.data&&e.data.type==="error"&&e.data.fails>=3){feedStatus.textContent="partial";feedStatus.className="muted"}
+    if(e.data&&e.data.type==="error"&&e.data.fails>=3){const fs=document.getElementById("feedStatus"); if(fs){fs.textContent="partial";fs.className="muted"}}
   };
   wxWorker.onerror=function(){workerOk=false;wxWorker=null};
   wxWorker.postMessage({type:"config",pollSec:cfg.pollSec||60,hidden:document.hidden});

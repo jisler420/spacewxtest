@@ -237,7 +237,8 @@ function applyHealth(h){
   if(h.plasmaSrc&&h.plasmaSrc!==h.magSrc) bits.push(h.plasmaSrc);
   if(h.kpSrc) bits.push("Kp "+h.kpSrc);
   if(h.dstSrc) bits.push("Dst "+h.dstSrc);
-  if(imfStatus) imfStatus.textContent=bits.join(" · ");
+  const imfEl=document.getElementById("imfStatus");
+  if(imfEl) imfEl.textContent=bits.join(" · ");
   if(swStatus){
     if(h.mag||h.plasma){swStatus.textContent=(h.magSrc||"KNMI")+" · last 36h + 1h pad";swStatus.className="muted"}
     else if(!hasValue(vWind)){swStatus.textContent=DOWN;swStatus.className="down"}

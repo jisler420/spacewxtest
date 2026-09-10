@@ -346,10 +346,27 @@ function parseHemiSeries(txt){
     const obs=parseT(String(p[0]).replace("_","T"));
     const fcst=parseT(String(p[1]).replace("_","T"));
     const n=+p[2], s=+p[3];
-    if(isFinite(fcst)&&isFinite(n)&&isFinite(s)) out.push({obs:obs,fcst:fcst,n:n,s:s});
+    if(isFinite(obs)&&isFinite(fcst)&&isFinite(n)&&isFinite(s)) out.push({obs:obs,fcst:fcst,n:n,s:s});
   });
   return out;
 }
+const HEMI_KEEP=8*3600000;
+const HEMI_LS="spacewx-hemi";
+function mergeHemi(rows){
+  const by=Object.create(null);
+  (hemiSeries||[]).concat(rows||[]).forEach(function(r){
+    if(r&&isFinite(r.obs)) by[r.obs]=r;
+  });
+  const cut=Date.now()-HEMI_KEEP;
+  hemiSeries=Object.keys(by).map(Number).sort(function(a,b){return a-b}).map(function(k){return by[k]}).filter(function(r){return r.obs>=cut});
+  try{localStorage.setItem(HEMI_LS, JSON.stringify(hemiSeries))}catch(e){}
+}
+(function loadHemiCache(){
+  try{
+    const j=JSON.parse(localStorage.getItem(HEMI_LS)||"[]");
+    if(Array.isArray(j)&&j.length) mergeHemi(j);
+  }catch(e){}
+})();
 const HP_SCALES=[25,50,75,100,125,150,175,200,250];
 function hpScale(peak){
   const p=Math.max(0,peak);
@@ -481,7 +498,7 @@ function drawHemiPlot(){
 }
 function applyHemi(hemi, ts){
   const rows=hemi?parseHemiSeries(hemi):[];
-  if(rows.length){ hemiSeries=rows; hemiPolledAt=ts||Date.now(); }
+  if(rows.length){ mergeHemi(rows); hemiPolledAt=ts||Date.now(); }
   drawHemiPlot();
 }
 async function refreshHemi(){

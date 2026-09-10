@@ -23,7 +23,7 @@ jobs:
       - name: Merge NOAA hemi-power snapshot (36h)
         run: python3 scripts/merge_hemi.py
       - name: Commit snapshot
-        if: github.event_name == 'schedule'
+        if: github.event_name != 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

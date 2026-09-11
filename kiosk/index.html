@@ -198,7 +198,7 @@ th:first-child,td:first-child{text-align:left}
         </div>
         <div class="muted" id="hemiPlotNote">6 hours · 5-minute averages · latest on the right</div>
       </div>
-      <div class="card"><h2>Solar Wind · KNMI HAPI</h2><canvas id="swPlot"></canvas><div class="muted" id="swStatus">last 36 hours + 1h pad · hourly</div></div>
+      <div class="card"><h2>Solar Wind · KNMI HAPI</h2><canvas id="swPlot"></canvas><div class="muted" id="swStatus">last 36 hours + 1h pad · every 2 hours</div></div>
     </div>
     <div class="card"><h2>WSA-Enlil</h2><img id="enlil" alt="enlil"><div class="player"><button type="button" id="enlilPlay">Play</button><input id="enlilScrub" type="range" min="0" max="0" value="0"><span class="muted" id="enlilStamp"></span></div><div class="muted" id="enlilNote"></div></div>
     <div class="card"><h2>WAM-IPE · TEC nowcast</h2><a class="imglink" id="wamIpeA" target="_blank" rel="noopener noreferrer"><img id="wamIpe" alt="WAM-IPE"></a><div class="muted" id="wamNote">NOAA WAM-IPE · NCEP NOMADS</div></div>
@@ -235,7 +235,7 @@ function applyHealth(h){
   const imfEl=document.getElementById("imfStatus");
   if(imfEl) imfEl.textContent=bits.join(" · ");
   if(swStatus){
-    if(h.mag||h.plasma){swStatus.textContent=(h.magSrc||"KNMI")+" · last 36h + 1h pad";swStatus.className="muted"}
+    if(h.mag||h.plasma){swStatus.textContent=(h.magSrc||"KNMI")+" · last 36h + 1h pad · every 2h";swStatus.className="muted"}
     else if(!hasValue(vWind)){swStatus.textContent=DOWN;swStatus.className="down"}
   }
 }
@@ -678,7 +678,8 @@ function drawSw(){
   (hapiPack.hp||[]).forEach(function(r){if(!isFinite(r.Hp30))return;const x=xAt(r.t),y=yAt(y2,p2.h,p2.ymin,p2.ymax,0,r.Hp30);ctx.fillStyle=r.Hp30>=5?"#FFF033":r.Hp30>=4?"#FFBB44":"#88CC66";ctx.fillRect(x,y,barW,y2+p2.h-y)});
   ctx.fillStyle="#8b97b3";ctx.font="9px sans-serif";ctx.textAlign="center";
   const startH=new Date(t0);startH.setUTCMinutes(0,0,0);
-  for(let t=startH.getTime();t<=t1;t+=3600000){const dt=new Date(t);ctx.fillText(dt.getUTCHours()===0?dt.toISOString().slice(5,10):String(dt.getUTCHours()).padStart(2,"0"),xAt(t),cssH-6)}
+  if(startH.getUTCHours()%2) startH.setUTCHours(startH.getUTCHours()+1);
+  for(let t=startH.getTime();t<=t1;t+=7200000){const dt=new Date(t);ctx.fillText(dt.getUTCHours()===0?dt.toISOString().slice(5,10):String(dt.getUTCHours()).padStart(2,"0"),xAt(t),cssH-6)}
 }
 function drawDst(){
   const d=Number(last(cache.dst).dst);

@@ -32,6 +32,7 @@ header{display:grid;grid-template-columns:1fr auto 1fr;gap:8px 12px;align-items:
 .when.stale{color:#f5d76e}
 .when.dead{color:var(--bad)}
 .dstpair .r{text-align:right}
+.dstpair .c{text-align:center}
 .tone0{color:#eef3ff}.tone1{color:#f5d76e}.tone2{color:#f59e42}.tone3{color:#f05252}
 .kpi span{color:var(--muted);font-size:11px;text-transform:uppercase}
 .short{display:none}
@@ -148,9 +149,11 @@ th:first-child,td:first-child{text-align:left}
     </div>
     <div class="kpi">
       <div class="dstpair">
-        <div><div class="lab">Kp 1m</div><b id="vKp1m">-</b><div class="when" id="tKp1m">—</div></div>
-        <div class="r"><div class="lab">Kp 15m</div><b id="vKp15">-</b><div class="when" id="tKp15">—</div></div>
+        <div><div class="lab">Kp 1m</div><b id="vKp1m">-</b></div>
+        <div class="c"><div class="lab">Kp 15m</div><b id="vKp15">-</b></div>
+        <div class="r"><div class="lab">Kp 30m</div><b id="vKp30">-</b></div>
       </div>
+      <div class="when" id="tKp1m">—</div>
     </div>
     <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
     <div class="kpi">
@@ -706,26 +709,28 @@ function drawKp1m(row){
     if(!r)return;
     const t=parseT(r.time_tag);
     const k=Number(r.estimated_kp!=null?r.estimated_kp:r.kp);
-    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,estimated_kp:k};
+    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,t:t,estimated_kp:k};
   });
   const times=Object.keys(by).map(Number).sort(function(a,b){return a-b});
   const latestT=times.length?times[times.length-1]:0;
-  const cut=latestT-15*60000;
+  const cut=latestT-30*60000;
   kp1mBuf=times.filter(function(t){return t>=cut}).map(function(t){return by[t]});
   const latest=kp1mBuf.length?kp1mBuf[kp1mBuf.length-1]:null;
   if(!latest) return;
-  const k=latest.estimated_kp;
-  el.textContent=k.toFixed(2);
-  tone(el,"kp",k);
+  el.textContent=latest.estimated_kp.toFixed(2);
+  tone(el,"kp",latest.estimated_kp);
   stampWhen("tKp1m", latest.time_tag, "kp1m");
-  const avgEl=document.getElementById("vKp15");
-  if(avgEl){
-    let s=0; kp1mBuf.forEach(function(r){s+=r.estimated_kp});
-    const avg=s/kp1mBuf.length;
-    avgEl.textContent=avg.toFixed(2);
-    tone(avgEl,"kp",avg);
-    stampWhen("tKp15", latest.time_tag, "kp1m");
+  function avgSince(ms){
+    const t0=latestT-ms;
+    let s=0,n=0;
+    kp1mBuf.forEach(function(r){ if(r.t>=t0){s+=r.estimated_kp;n++} });
+    return n?s/n:NaN;
   }
+  const a15=avgSince(15*60000), a30=avgSince(30*60000);
+  const el15=document.getElementById("vKp15");
+  if(el15&&isFinite(a15)){ el15.textContent=a15.toFixed(2); tone(el15,"kp",a15); }
+  const el30=document.getElementById("vKp30");
+  if(el30&&isFinite(a30)){ el30.textContent=a30.toFixed(2); tone(el30,"kp",a30); }
 }
 function parseGfzHp30(txt){
   const rows=[];
@@ -941,7 +946,7 @@ try{drawHemiPlot()}catch(e){}
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=kp15m", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=kp30m", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
-<title>SpaceWx TEST</title>
+<title>SpaceWX TEST</title>
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
@@ -120,24 +120,13 @@ th:first-child,td:first-child{text-align:left}
 </style>
 </head>
 <body>
-<script>
-(function(){
-  function c(){
-    var n=new Date(), t=n.toISOString().slice(11,19);
-    var u=document.getElementById("utc"); if(u) u.textContent="UTC "+t;
-    var r=document.getElementById("railUtc"); if(r) r.textContent=t+" UTC";
-  }
-  c(); setInterval(c,1000);
-})();
-</script>
-
 <header>
-  <div class="brand">SpaceWx TEST</div>
+  <div class="brand">SpaceWX TEST</div>
   <div class="opened" id="pageOpened">Opened —</div>
   <div class="hdr-right">
     <div class="muted" id="utc">UTC</div>
     <div class="muted" id="local">Local</div>
-    <nav><a href="index.html">Live</a> · <a href="settings.html">Settings</a></nav>
+    <nav><a href="index.html">Live</a> · <a href="settings.html">Location</a></nav>
   </div>
 </header>
 <script>
@@ -152,13 +141,13 @@ th:first-child,td:first-child{text-align:left}
 <main class="main">
   <div class="kpis kpis-4">
     <div class="kpi"><span>Observer</span><b id="railUtc">-</b><div class="muted" id="railLocal"></div><div class="muted" id="updatedAt">Updated —</div></div>
-    <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
     <div class="kpi">
       <div class="dstpair">
         <div><div class="lab">NOAA scales</div><b id="vRsg">-</b><div class="when" id="tScales">—</div><div class="muted">R · S · G</div></div>
         <div class="r"><div class="lab">Kp 1m</div><b id="vKp1m">-</b><div class="when" id="tKp1m">—</div></div>
       </div>
     </div>
+    <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
     <div class="kpi">
       <span>Disturbance Storm Time Index</span>
       <div class="dstpair">
@@ -389,7 +378,7 @@ function drawHemiPlot(){
   const ctx=el.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle="#0b1220"; ctx.fillRect(0,0,cssW,cssH);
   const L=50,R=10,T=22,B=24, pw=cssW-L-R, ph=cssH-T-B;
-  const now=Date.now(), STEP=5*60000, nSlots=72, HOLD=17.5, BLUE="#38bdf8";
+  const now=Date.now(), STEP=5*60000, nSlots=72, HOLD=2.5, PURPLE="#a855f7";
   const latest=hemiSeries.length?hemiSeries[hemiSeries.length-1]:null;
   const stale=!latest || (now-(latest.fcst||latest.obs)>25*60000);
   let earthRow=null;
@@ -429,9 +418,9 @@ function drawHemiPlot(){
     const x=L+i*(barW+gap);
     const n=r&&!stale?r.n:HOLD, s=r&&!stale?r.s:HOLD;
     const live=!!(r&&!stale);
-    ctx.fillStyle=live?hpBarColor(n):BLUE;
+    ctx.fillStyle=live?hpBarColor(n):PURPLE;
     ctx.fillRect(x, Math.round(yAt(n)), barW, Math.max(1,Math.round(y0)-Math.round(yAt(n))));
-    ctx.fillStyle=live?hpBarColor(s):BLUE;
+    ctx.fillStyle=live?hpBarColor(s):PURPLE;
     ctx.fillRect(x, Math.round(y0), barW, Math.max(1,Math.round(yAt(-s))-Math.round(y0)));
   }
   let iEarth=nSlots-1;
@@ -489,8 +478,8 @@ function drawHemiPlot(){
   const l1=stale?null:latest;
   function badge(id,v,down){
     const b=document.getElementById(id); if(!b)return;
-    b.textContent=down?"17.5 GW":(isFinite(v)?Math.round(v)+" GW":"-");
-    b.style.background=down?BLUE:(isFinite(v)?hpBarColor(v):"#334155");
+    b.textContent=down?"2.5 GW":(isFinite(v)?Math.round(v)+" GW":"-");
+    b.style.background=down?PURPLE:(isFinite(v)?hpBarColor(v):"#334155");
   }
   badge("hemiNEarth", earth?earth.n:HOLD, !earth);
   badge("hemiSEarth", earth?earth.s:HOLD, !earth);
@@ -869,7 +858,8 @@ function tick(){
   utc.textContent="UTC "+n.toISOString().slice(11,19);
   railUtc.textContent=n.toISOString().slice(11,19)+" UTC";
   try{const loc=n.toLocaleTimeString("en-US",{timeZone:cfg.tz,hour12:false});local.textContent="Local "+loc;railLocal.textContent=loc+" "+(cfg.tz||"")}catch(e){}
-  if(n.getUTCSeconds()%15===0) try{drawEarth()}catch(e){}
+  const min=n.getUTCHours()*60+n.getUTCMinutes();
+  if(min!==tick._termMin){tick._termMin=min; try{drawEarth()}catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -924,14 +914,6 @@ function applyWorkerData(data){
 tick();
 try{drawHemiPlot()}catch(e){}
 drawEarth();loadImgs();loadEnlil();
-(function scheduleHemi(){
-  refreshHemi();
-  const ms=5*60000;
-  setTimeout(function(){
-    refreshHemi();
-    setInterval(refreshHemi, ms);
-  }, ms-(Date.now()%ms));
-})();
 let wxWorker=null, workerOk=false;
 try{
   const wurl=new URL("spacewx-worker.js?v=hemiArch", document.baseURI||location.href);
@@ -955,7 +937,7 @@ if(!wxWorker){
   const ms=sec*1000;
   setTimeout(function(){refreshKpis("fast");setInterval(function(){refreshKpis("fast")},ms)},ms-(Date.now()%ms));
 }
-setInterval(function(){loadImgs();loadEnlil();drawEarth()},300000);
+setInterval(function(){loadImgs(); if(!timer) loadEnlil();},300000);
 document.addEventListener("visibilitychange",function(){
   if(wxWorker){try{wxWorker.postMessage({type:"config",pollSec:cfg.pollSec||60,hidden:document.hidden})}catch(e){}}
   if(!document.hidden) refreshKpis("all");

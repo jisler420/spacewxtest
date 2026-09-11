@@ -132,7 +132,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="kpis kpis-4">
     <div class="kpi">
       <div class="dstpair">
-        <div><span>Observer</span><b id="railUtc">-</b><div class="muted" id="railLocal"></div><div class="muted" id="updatedAt">Updated —</div></div>
+        <div><span>Observer</span><b id="railUtc">-</b><b id="railLocal">-</b></div>
         <div class="r"><div class="lab">NOAA scales</div><b id="vRsg">-</b><div class="when" id="tScales">—</div><div class="muted">R · S · G</div></div>
       </div>
     </div>
@@ -880,7 +880,13 @@ async function loadEnlil(){const html=await settled(ENLIL_DIR);frames=[...String
 function tick(){
   const n=new Date();
   const ru=document.getElementById("railUtc"); if(ru) ru.textContent=n.toISOString().slice(11,19)+" UTC";
-  try{const loc=n.toLocaleTimeString("en-US",{timeZone:cfg.tz,hour12:false}); const rl=document.getElementById("railLocal"); if(rl) rl.textContent=loc+" "+(cfg.tz||"")}catch(e){}
+  try{
+    const parts=new Intl.DateTimeFormat("en-US",{timeZone:cfg.tz||"UTC",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false,timeZoneName:"short"}).formatToParts(n);
+    const get=function(t){const x=parts.find(function(p){return p.type===t}); return x?x.value:""};
+    let h=get("hour"), m=get("minute"), s=get("second"), z=get("timeZoneName")||"LT";
+    if(h.length<2) h="0"+h;
+    const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
+  }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
   if(min!==tick._termMin){tick._termMin=min; try{drawEarth()}catch(e){}}
   restampAges();

@@ -12,3 +12,9 @@ Isolated from the stable test kiosk. Primary + one fallback per number. Data-age
 | Hemi / map | NOAA hemi + OVATION | last canvas |
 
 Timestamps: muted = fresh, yellow = soft stale (keep number), red = hard stale (keep number). Cards are not wiped when a sibling feed fails.
+
+## Later ideas (not wired)
+
+NASA CCMC ISWA HAPI catalog: https://iswa.ccmc.gsfc.nasa.gov/hapi/catalog  
+Possible NOAA-copy failover IDs: `swpc_rtsw_mag_P1M`, `swpc_rtsw_plasma_P1M`, `NOAA_KP_P3H`. Do not use as primary vs KNMI.
+

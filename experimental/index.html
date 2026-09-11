@@ -149,7 +149,7 @@ th:first-child,td:first-child{text-align:left}
     </div>
     <div class="kpi">
       <div class="dstpair">
-        <div><div class="lab">Kp 1m</div><b id="vKp1m">-</b></div>
+        <div><div class="lab">Kp 5m</div><b id="vKp5">-</b></div>
         <div class="c"><div class="lab">Kp 15m</div><b id="vKp15">-</b></div>
         <div class="r"><div class="lab">Kp 30m</div><b id="vKp30">-</b></div>
       </div>
@@ -702,7 +702,7 @@ function newestByTime(arr){
   return best;
 }
 function drawKp1m(row){
-  const el=document.getElementById("vKp1m"); if(!el) return;
+  const el=document.getElementById("vKp5"); if(!el) return;
   const incoming=Array.isArray(row)?row:(row?[row]:[]);
   const by=Object.create(null);
   (kp1mBuf||[]).concat(incoming).forEach(function(r){
@@ -717,16 +717,21 @@ function drawKp1m(row){
   kp1mBuf=times.filter(function(t){return t>=cut}).map(function(t){return by[t]});
   const latest=kp1mBuf.length?kp1mBuf[kp1mBuf.length-1]:null;
   if(!latest) return;
-  el.textContent=latest.estimated_kp.toFixed(2);
-  tone(el,"kp",latest.estimated_kp);
   stampWhen("tKp1m", latest.time_tag, "kp1m");
+  function lastN(n){
+    const slice=kp1mBuf.slice(-n);
+    if(!slice.length) return NaN;
+    let s=0; slice.forEach(function(r){s+=r.estimated_kp});
+    return s/slice.length;
+  }
   function avgSince(ms){
     const t0=latestT-ms;
     let s=0,n=0;
     kp1mBuf.forEach(function(r){ if(r.t>=t0){s+=r.estimated_kp;n++} });
     return n?s/n:NaN;
   }
-  const a15=avgSince(15*60000), a30=avgSince(30*60000);
+  const a5=lastN(5), a15=avgSince(15*60000), a30=avgSince(30*60000);
+  if(isFinite(a5)){ el.textContent=a5.toFixed(2); tone(el,"kp",a5); }
   const el15=document.getElementById("vKp15");
   if(el15&&isFinite(a15)){ el15.textContent=a15.toFixed(2); tone(el15,"kp",a15); }
   const el30=document.getElementById("vKp30");

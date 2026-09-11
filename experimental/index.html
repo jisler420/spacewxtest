@@ -73,6 +73,7 @@ a.imglink{display:block;cursor:zoom-in}
 a.imglink img{cursor:zoom-in}
 canvas.chart{height:210px;background:#0a0e18}
 .muted{color:var(--muted);font-size:12px}
+.pagefoot{text-align:center;padding:8px 14px 24px;padding-bottom:max(24px,env(safe-area-inset-bottom));color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
 .kpi b.down,.muted.down,#kpForecast.down{color:var(--bad);font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}
 .card img{max-height:min(70vh,560px);object-fit:contain}
 .player{display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -204,8 +205,13 @@ th:first-child,td:first-child{text-align:left}
     <div class="card"><h2>TGO Europe H</h2><a class="imglink" id="tgoA" target="_blank" rel="noopener noreferrer"><img id="tgo" alt="TGO" referrerpolicy="no-referrer"></a><div class="muted" id="tgoNote"></div></div>
   </div>
 </main>
+  <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
 </div>
 <script>
+(function(){
+  var el=document.getElementById("pageRefreshed");
+  if(el) el.textContent="Page Refreshed "+new Date().toISOString().slice(0,19).replace("T"," ")+" UTC";
+})();
 const DEFAULT={zip:"",lat:43.54731,lon:-96.7313,place:"43.54731, -96.73130",tz:"America/Chicago",pollSec:60};
 function loadCfg(){try{return Object.assign({},DEFAULT,JSON.parse(localStorage.getItem("spacewx-cfg")||"{}"))}catch(e){return Object.assign({},DEFAULT)}}
 const cfg=loadCfg();

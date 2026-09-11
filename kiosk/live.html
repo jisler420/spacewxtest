@@ -12,7 +12,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 Segoe UI,system-ui,sans-serif;overflow-x:hidden;-webkit-text-size-adjust:100%}
 a{color:var(--acc);text-decoration:none}
-header{display:grid;grid-template-columns:1fr auto 1fr;gap:8px 12px;align-items:center;padding:10px 14px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));background:var(--rail);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30}
+header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;padding:10px 14px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));background:var(--rail);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30}
 .brand{font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--acc);justify-self:start}
 .opened{text-align:center;justify-self:center;color:var(--acc);font-variant-numeric:tabular-nums;letter-spacing:.04em;font-size:13px;white-space:nowrap}
 .hdr-right{justify-self:end;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
@@ -32,6 +32,7 @@ header{display:grid;grid-template-columns:1fr auto 1fr;gap:8px 12px;align-items:
 .when.stale{color:#f5d76e}
 .when.dead{color:var(--bad)}
 .dstpair .r{text-align:right}
+.dstpair .c{text-align:center}
 .tone0{color:#eef3ff}.tone1{color:#f5d76e}.tone2{color:#f59e42}.tone3{color:#f05252}
 .kpi span{color:var(--muted);font-size:11px;text-transform:uppercase}
 .short{display:none}
@@ -72,6 +73,8 @@ a.imglink{display:block;cursor:zoom-in}
 a.imglink img{cursor:zoom-in}
 canvas.chart{height:210px;background:#0a0e18}
 .muted{color:var(--muted);font-size:12px}
+.pagefoot{text-align:center;padding:4px 14px;color:#5a6478;font-size:12px;font-variant-numeric:tabular-nums}
+.pagefoot:last-child{padding-bottom:max(24px,env(safe-area-inset-bottom))}
 .kpi b.down,.muted.down,#kpForecast.down{color:var(--bad);font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}
 .card img{max-height:min(70vh,560px);object-fit:contain}
 .player{display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -122,35 +125,26 @@ th:first-child,td:first-child{text-align:left}
 <body>
 <header>
   <div class="brand">SpaceWX TEST</div>
-  <div class="opened" id="pageOpened">Opened —</div>
   <div class="hdr-right">
-    <div class="muted" id="utc">UTC</div>
-    <div class="muted" id="local">Local</div>
-    <nav><a href="index.html">Live</a> · <a href="settings.html">Location</a></nav>
+    <nav><a href="index.html">Live</a> · <a href="settings.html">Location settings</a></nav>
   </div>
 </header>
-<script>
-(function(){
-  var o=document.getElementById("pageOpened");
-  if(!o) return;
-  var d=new Date();
-  o.textContent="Opened "+d.toISOString().slice(0,19).replace("T"," ")+" UTC";
-})();
-</script>
 <div class="shell">
 <main class="main">
   <div class="kpis kpis-4">
     <div class="kpi">
       <div class="dstpair">
-        <div><span>Observer</span><b id="railUtc">-</b><div class="muted" id="railLocal"></div><div class="muted" id="updatedAt">Updated —</div></div>
+        <div><span>Observer</span><b id="railUtc">-</b><b id="railLocal">-</b></div>
         <div class="r"><div class="lab">NOAA scales</div><b id="vRsg">-</b><div class="when" id="tScales">—</div><div class="muted">R · S · G</div></div>
       </div>
     </div>
     <div class="kpi">
       <div class="dstpair">
-        <div><div class="lab">Kp 1m</div><b id="vKp1m">-</b><div class="when" id="tKp1m">—</div></div>
-        <div class="r"><div class="lab">Kp 15m</div><b id="vKp15">-</b><div class="when" id="tKp15">—</div></div>
+        <div><div class="lab">Kp 5m</div><b id="vKp5">-</b></div>
+        <div class="c"><div class="lab">Kp 15m</div><b id="vKp15">-</b></div>
+        <div class="r"><div class="lab">Kp 30m</div><b id="vKp30">-</b></div>
       </div>
+      <div class="when" id="tKp1m">—</div>
     </div>
     <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
     <div class="kpi">
@@ -212,9 +206,16 @@ th:first-child,td:first-child{text-align:left}
     <div class="card"><h2>TGO Europe H</h2><a class="imglink" id="tgoA" target="_blank" rel="noopener noreferrer"><img id="tgo" alt="TGO" referrerpolicy="no-referrer"></a><div class="muted" id="tgoNote"></div></div>
   </div>
 </main>
+  <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
+  <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
+  <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
 </div>
 <script>
-const DEFAULT={zip:"",lat:30.02449,lon:-97.9072,place:"30.02449, -97.90720",tz:"America/Chicago",pollSec:60};
+(function(){
+  var el=document.getElementById("pageRefreshed");
+  if(el) el.textContent="Page Refreshed "+new Date().toISOString().slice(0,19).replace("T"," ")+" UTC";
+})();
+const DEFAULT={zip:"",lat:43.54731,lon:-96.7313,place:"43.54731, -96.73130",tz:"America/Chicago",pollSec:60};
 function loadCfg(){try{return Object.assign({},DEFAULT,JSON.parse(localStorage.getItem("spacewx-cfg")||"{}"))}catch(e){return Object.assign({},DEFAULT)}}
 const cfg=loadCfg();
 const cache={dst:[],dstPred:[],hp30:[],kp:[]};
@@ -699,33 +700,40 @@ function newestByTime(arr){
   return best;
 }
 function drawKp1m(row){
-  const el=document.getElementById("vKp1m"); if(!el) return;
+  const el=document.getElementById("vKp5"); if(!el) return;
   const incoming=Array.isArray(row)?row:(row?[row]:[]);
   const by=Object.create(null);
   (kp1mBuf||[]).concat(incoming).forEach(function(r){
     if(!r)return;
     const t=parseT(r.time_tag);
     const k=Number(r.estimated_kp!=null?r.estimated_kp:r.kp);
-    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,estimated_kp:k};
+    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,t:t,estimated_kp:k};
   });
   const times=Object.keys(by).map(Number).sort(function(a,b){return a-b});
   const latestT=times.length?times[times.length-1]:0;
-  const cut=latestT-15*60000;
+  const cut=latestT-30*60000;
   kp1mBuf=times.filter(function(t){return t>=cut}).map(function(t){return by[t]});
   const latest=kp1mBuf.length?kp1mBuf[kp1mBuf.length-1]:null;
   if(!latest) return;
-  const k=latest.estimated_kp;
-  el.textContent=k.toFixed(2);
-  tone(el,"kp",k);
   stampWhen("tKp1m", latest.time_tag, "kp1m");
-  const avgEl=document.getElementById("vKp15");
-  if(avgEl){
-    let s=0; kp1mBuf.forEach(function(r){s+=r.estimated_kp});
-    const avg=s/kp1mBuf.length;
-    avgEl.textContent=avg.toFixed(2);
-    tone(avgEl,"kp",avg);
-    stampWhen("tKp15", latest.time_tag, "kp1m");
+  function lastN(n){
+    const slice=kp1mBuf.slice(-n);
+    if(!slice.length) return NaN;
+    let s=0; slice.forEach(function(r){s+=r.estimated_kp});
+    return s/slice.length;
   }
+  function avgSince(ms){
+    const t0=latestT-ms;
+    let s=0,n=0;
+    kp1mBuf.forEach(function(r){ if(r.t>=t0){s+=r.estimated_kp;n++} });
+    return n?s/n:NaN;
+  }
+  const a5=lastN(5), a15=avgSince(15*60000), a30=avgSince(30*60000);
+  if(isFinite(a5)){ el.textContent=a5.toFixed(2); tone(el,"kp",a5); }
+  const el15=document.getElementById("vKp15");
+  if(el15&&isFinite(a15)){ el15.textContent=a15.toFixed(2); tone(el15,"kp",a15); }
+  const el30=document.getElementById("vKp30");
+  if(el30&&isFinite(a30)){ el30.textContent=a30.toFixed(2); tone(el30,"kp",a30); }
 }
 function parseGfzHp30(txt){
   const rows=[];
@@ -880,9 +888,14 @@ function show(n){if(!frames.length)return;fi=(n+frames.length)%frames.length;enl
 async function loadEnlil(){const html=await settled(ENLIL_DIR);frames=[...String(html||"").matchAll(/href="(enlil_[^"]+\.jpg)"/g)].map(m=>ENLIL_DIR+m[1]);frames=[...new Set(frames)].sort();if(!frames.length){enlil.src=bust(ENLIL_DIR+"latest.jpg");enlilStamp.textContent="latest";return}enlilScrub.max=frames.length-1;enlilScrub.oninput=function(){if(timer){clearInterval(timer);timer=null;enlilPlay.textContent="Play"}show(+enlilScrub.value)};enlilPlay.onclick=function(){if(timer){clearInterval(timer);timer=null;enlilPlay.textContent="Play"}else{enlilPlay.textContent="Pause";timer=setInterval(function(){show(fi+1)},180)}};show(frames.length-1)}
 function tick(){
   const n=new Date();
-  utc.textContent="UTC "+n.toISOString().slice(11,19);
-  railUtc.textContent=n.toISOString().slice(11,19)+" UTC";
-  try{const loc=n.toLocaleTimeString("en-US",{timeZone:cfg.tz,hour12:false});local.textContent="Local "+loc;railLocal.textContent=loc+" "+(cfg.tz||"")}catch(e){}
+  const ru=document.getElementById("railUtc"); if(ru) ru.textContent=n.toISOString().slice(11,19)+" UTC";
+  try{
+    const parts=new Intl.DateTimeFormat("en-US",{timeZone:cfg.tz||"UTC",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false,timeZoneName:"short"}).formatToParts(n);
+    const get=function(t){const x=parts.find(function(p){return p.type===t}); return x?x.value:""};
+    let h=get("hour"), m=get("minute"), s=get("second"), z=get("timeZoneName")||"LT";
+    if(h.length<2) h="0"+h;
+    const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
+  }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
   if(min!==tick._termMin){tick._termMin=min; try{drawEarth()}catch(e){}}
   restampAges();
@@ -941,7 +954,7 @@ try{drawHemiPlot()}catch(e){}
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=kp15m", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=kp30m", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

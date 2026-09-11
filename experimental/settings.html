@@ -15,18 +15,21 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #2a3650;backgro
 #msg{min-height:1.2em;margin:12px 0 0;color:#f87171;font-size:13px}
 #msg.ok{color:#34d399}
 button{display:block;width:100%;margin-top:18px;padding:14px;border-radius:8px;border:0;background:#5eead4;color:#070b12;font-weight:700;font-size:16px;cursor:pointer;min-height:48px}
+button.secondary{margin-top:10px;background:#1a2438;color:#eef3ff;border:1px solid #2a3650;font-weight:650}
+button:disabled{opacity:.55;cursor:wait}
 </style>
 </head>
 <body>
 <header><div class="brand">SpaceWX Experimental</div></header>
 <main>
 <h1>Location settings</h1>
-<p class="muted">US 5-digit ZIP or GPS lat, lon (5 digits after the decimal). Coordinates win if both are filled. Leave both blank for 43.54731, -96.73130.</p>
+<p class="muted">US 5-digit ZIP, typed GPS, or Use my location. Coordinates win if filled. Leave both blank for 43.54731, -96.73130.</p>
 <label>ZIP code</label>
 <input id="zip" maxlength="5" inputmode="numeric" placeholder="optional" autocomplete="postal-code">
 <label>GPS coordinates</label>
 <input id="coords" placeholder="43.54731, -96.73130" autocomplete="off">
 <div id="msg"></div>
+<button id="geo" class="secondary" type="button">Use my location</button>
 <button id="save" type="button">Save</button>
 </main>
 <script>
@@ -48,6 +51,27 @@ function goLive(){ location.replace("index.html"); }
 const cur=load();
 zip.value=cur.zip||"";
 coords.value=cur.zip?"":(Number(cur.lat).toFixed(5)+", "+Number(cur.lon).toFixed(5));
+geo.onclick=function(){
+  msg.className="";
+  if(!navigator.geolocation){ msg.textContent="This browser cannot share location."; return; }
+  geo.disabled=true;
+  msg.className="ok";
+  msg.textContent="Asking for location…";
+  navigator.geolocation.getCurrentPosition(function(pos){
+    const lat=Math.round(pos.coords.latitude*1e5)/1e5;
+    const lon=Math.round(pos.coords.longitude*1e5)/1e5;
+    coords.value=lat.toFixed(5)+", "+lon.toFixed(5);
+    zip.value="";
+    geo.disabled=false;
+    msg.className="ok";
+    msg.textContent="Filled from this device. Save to use it.";
+  }, function(err){
+    geo.disabled=false;
+    msg.className="";
+    const c=err&&err.code;
+    msg.textContent=c===1?"Location permission denied.":c===3?"Location timed out.":"Could not get location.";
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:30000});
+};
 save.onclick=async()=>{
   msg.className="";
   const raw=(coords.value||"").trim();

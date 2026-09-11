@@ -145,6 +145,7 @@ th:first-child,td:first-child{text-align:left}
       <div class="dstpair">
         <div><div class="lab">NOAA scales</div><b id="vRsg">-</b><div class="when" id="tScales">—</div><div class="muted">R · S · G</div></div>
         <div class="r"><div class="lab">Kp 1m</div><b id="vKp1m">-</b><div class="when" id="tKp1m">—</div></div>
+        <div class="r"><div class="lab">Kp 15m</div><b id="vKp15">-</b><div class="when" id="tKp15">—</div></div>
       </div>
     </div>
     <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
@@ -266,6 +267,7 @@ function kpGCell(k,scale){
 }
 let hemiSeries=[];
 let hemiPolledAt=0;
+let kp1mBuf=[];
 function utcHms(ms){
   const d=new Date(ms);
   if(!isFinite(ms)||!isFinite(d.getTime())) return "—";
@@ -694,13 +696,32 @@ function newestByTime(arr){
 }
 function drawKp1m(row){
   const el=document.getElementById("vKp1m"); if(!el) return;
-  const r=row&&!Array.isArray(row)?row:newestByTime(row);
-  if(!r) return;
-  const k=Number(r.estimated_kp!=null?r.estimated_kp:r.kp);
-  if(!isFinite(k)) return;
+  const incoming=Array.isArray(row)?row:(row?[row]:[]);
+  const by=Object.create(null);
+  (kp1mBuf||[]).concat(incoming).forEach(function(r){
+    if(!r)return;
+    const t=parseT(r.time_tag);
+    const k=Number(r.estimated_kp!=null?r.estimated_kp:r.kp);
+    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,estimated_kp:k};
+  });
+  const times=Object.keys(by).map(Number).sort(function(a,b){return a-b});
+  const latestT=times.length?times[times.length-1]:0;
+  const cut=latestT-15*60000;
+  kp1mBuf=times.filter(function(t){return t>=cut}).map(function(t){return by[t]});
+  const latest=kp1mBuf.length?kp1mBuf[kp1mBuf.length-1]:null;
+  if(!latest) return;
+  const k=latest.estimated_kp;
   el.textContent=k.toFixed(2);
   tone(el,"kp",k);
-  stampWhen("tKp1m", r.time_tag, "kp1m");
+  stampWhen("tKp1m", latest.time_tag, "kp1m");
+  const avgEl=document.getElementById("vKp15");
+  if(avgEl){
+    let s=0; kp1mBuf.forEach(function(r){s+=r.estimated_kp});
+    const avg=s/kp1mBuf.length;
+    avgEl.textContent=avg.toFixed(2);
+    tone(avgEl,"kp",avg);
+    stampWhen("tKp15", latest.time_tag, "kp1m");
+  }
 }
 function parseGfzHp30(txt){
   const rows=[];
@@ -916,7 +937,7 @@ try{drawHemiPlot()}catch(e){}
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=hemiArch", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=kp15m", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

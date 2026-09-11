@@ -260,12 +260,14 @@ async function collect(kind, signal) {
     }
     if (kp1mGot && kp1mGot.data) {
       const rows = Array.isArray(kp1mGot.data) ? kp1mGot.data : [];
-      let best = null, bt = -1;
+      const cut = Date.now() - 20 * 60000;
+      const recent = [];
       rows.forEach(function (r) {
         const t = parseT(r && r.time_tag);
-        if (Number.isFinite(t) && t >= bt) { bt = t; best = r; }
+        const k = Number(r && (r.estimated_kp != null ? r.estimated_kp : r.kp));
+        if (Number.isFinite(t) && t >= cut && Number.isFinite(k)) recent.push({ time_tag: r.time_tag, estimated_kp: k, kp: r.kp });
       });
-      if (best && putIfChanged(out, "kp1m", { time_tag: best.time_tag, estimated_kp: best.estimated_kp, kp: best.kp })) changed = true;
+      if (recent.length && putIfChanged(out, "kp1m", recent)) changed = true;
     }
   }
 

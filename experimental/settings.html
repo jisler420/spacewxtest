@@ -3,19 +3,31 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SpaceWX Experimental Location settings</title>
-<style>html,body{margin:0;background:#07090f;color:#e8eefc;font:16px/1.4 Segoe UI,system-ui,sans-serif;-webkit-text-size-adjust:100%;overflow-x:hidden}main{max-width:520px;margin:24px auto;padding:16px;padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}label,select{display:block;margin:12px 0 4px;color:#8b97b8}input,select{width:100%;padding:12px;border-radius:8px;border:1px solid #2a3558;background:#101526;color:#e8eefc;box-sizing:border-box;font-size:16px}button,a{display:inline-block;margin:16px 8px 0 0;padding:12px 16px;border-radius:8px;border:0;background:#5eead4;color:#07090f;text-decoration:none;cursor:pointer;min-height:44px}a{background:#1a2140;color:#e8eefc}.muted{color:#8b97b8;font-size:13px}</style>
+<style>
+html,body{margin:0;background:#070b12;color:#eef3ff;font:15px/1.45 Segoe UI,system-ui,sans-serif;-webkit-text-size-adjust:100%}
+header{display:flex;align-items:center;padding:10px 14px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));background:#0b1220;border-bottom:1px solid #2a3650}
+.brand{font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5eead4}
+main{max-width:440px;margin:28px auto;padding:18px;padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right));background:#121826;border:1px solid #2a3650;border-radius:12px}
+h1{margin:0 0 8px;font-size:20px}
+.muted{color:#8b97b3;font-size:13px;margin:0 0 16px}
+label{display:block;margin:14px 0 6px;color:#8b97b3;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+input{width:100%;padding:12px;border-radius:8px;border:1px solid #2a3650;background:#0b1220;color:#eef3ff;box-sizing:border-box;font-size:16px}
+#msg{min-height:1.2em;margin:12px 0 0;color:#f87171;font-size:13px}
+#msg.ok{color:#34d399}
+button{display:block;width:100%;margin-top:18px;padding:14px;border-radius:8px;border:0;background:#5eead4;color:#070b12;font-weight:700;font-size:16px;cursor:pointer;min-height:48px}
+</style>
 </head>
-<body><main>
+<body>
+<header><div class="brand">SpaceWX Experimental</div></header>
+<main>
 <h1>Location settings</h1>
-<p class="muted">US 5-digit ZIP or GPS lat, lon (5 digits after the decimal). Coordinates win if both are filled. Leave both blank for the default 43.54731, -96.73130.</p>
+<p class="muted">US 5-digit ZIP or GPS lat, lon (5 digits after the decimal). Coordinates win if both are filled. Leave both blank for 43.54731, -96.73130.</p>
 <label>ZIP code</label>
-<input id="zip" maxlength="5" inputmode="numeric" placeholder="optional">
+<input id="zip" maxlength="5" inputmode="numeric" placeholder="optional" autocomplete="postal-code">
 <label>GPS coordinates</label>
-<input id="coords" placeholder="63.27375, 18.61269">
-<div id="msg" class="muted"></div>
-<button id="save">Save</button>
-<a href="index.html">Back to experimental</a>
-<a href="../index.html">Live (stable test)</a>
+<input id="coords" placeholder="43.54731, -96.73130" autocomplete="off">
+<div id="msg"></div>
+<button id="save" type="button">Save</button>
 </main>
 <script>
 const DEFAULT={zip:"",lat:43.54731,lon:-96.7313,place:"43.54731, -96.73130",tz:"America/Chicago",pollSec:60};
@@ -32,42 +44,41 @@ function tzFrom(lon){
   return "UTC";
 }
 function load(){try{return Object.assign({},DEFAULT,JSON.parse(localStorage.getItem("spacewx-cfg")||"{}"))}catch(e){return Object.assign({},DEFAULT)}}
+function goLive(){ location.replace("index.html"); }
 const cur=load();
 zip.value=cur.zip||"";
 coords.value=cur.zip?"":(Number(cur.lat).toFixed(5)+", "+Number(cur.lon).toFixed(5));
 save.onclick=async()=>{
+  msg.className="";
   const raw=(coords.value||"").trim();
   if(raw){
     const m=raw.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
-    if(!m){msg.textContent="Use lat, lon like 63.27375, 18.61269";return;}
+    if(!m){msg.textContent="Use lat, lon like 43.54731, -96.73130";return;}
     const lat=Math.round(Number(m[1])*1e5)/1e5, lon=Math.round(Number(m[2])*1e5)/1e5;
     if(lat<-90||lat>90||lon<-180||lon>180){msg.textContent="Latitude −90 to 90, longitude −180 to 180.";return;}
-    const cfg={zip:"",lat,lon,place:lat.toFixed(5)+", "+lon.toFixed(5),tz:tzFrom(lon),pollSec:60};
-    localStorage.setItem("spacewx-cfg",JSON.stringify(cfg));
-    coords.value=cfg.place;
-    zip.value="";
-    msg.textContent="Saved "+cfg.place+" · "+cfg.tz;
+    localStorage.setItem("spacewx-cfg",JSON.stringify({zip:"",lat,lon,place:lat.toFixed(5)+", "+lon.toFixed(5),tz:tzFrom(lon),pollSec:60}));
+    goLive();
     return;
   }
   let z=(zip.value||"").replace(/\D/g,"").slice(0,5);
   if(!z){
-    const d=Object.assign({},DEFAULT,{pollSec:60});
-    localStorage.setItem("spacewx-cfg",JSON.stringify(d));
-    coords.value=DEFAULT.place;
-    zip.value="";
-    msg.textContent="Saved default "+DEFAULT.place+" · "+DEFAULT.tz;
+    localStorage.setItem("spacewx-cfg",JSON.stringify(Object.assign({},DEFAULT,{pollSec:60})));
+    goLive();
     return;
   }
   if(!/^\d{5}$/.test(z)){msg.textContent="Need a 5-digit US ZIP or lat, lon.";return;}
   msg.textContent="Looking up "+z+"…";
+  save.disabled=true;
   try{
     const r=await fetch("https://api.zippopotam.us/us/"+z);
     if(!r.ok)throw new Error("unknown ZIP");
     const j=await r.json(); const p=j.places[0];
     const lat=+p.latitude, lon=+p.longitude;
-    const cfg={zip:z,lat,lon,place:p["place name"]+", "+p["state abbreviation"],tz:tzFrom(lon),pollSec:60};
-    localStorage.setItem("spacewx-cfg",JSON.stringify(cfg));
-    msg.textContent="Saved "+cfg.place+" · "+cfg.tz;
-  }catch(e){msg.textContent="ZIP lookup failed: "+e}
+    localStorage.setItem("spacewx-cfg",JSON.stringify({zip:z,lat,lon,place:p["place name"]+", "+p["state abbreviation"],tz:tzFrom(lon),pollSec:60}));
+    goLive();
+  }catch(e){
+    save.disabled=false;
+    msg.textContent="ZIP lookup failed";
+  }
 };
 </script></body></html>

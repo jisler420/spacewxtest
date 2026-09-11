@@ -43,6 +43,9 @@ jobs:
           cp -a data/. _site/data/
           cp -a data/. _site/kiosk/data/
           cp -a experimental/. _site/experimental/ 2>/dev/null || true
+          mkdir -p _site/experimental/data
+          cp -a data/. _site/experimental/data/ 2>/dev/null || true
+          cp _site/hp30.txt _site/experimental/hp30.txt 2>/dev/null || true
           cp favicon.ico favicon.svg _site/ 2>/dev/null || true
           curl -fsSL https://kp.gfz.de/fileadmin/files_for_gfz_cms/Hp30_ap30_nowcast.txt -o _site/hp30.txt || true
           cp _site/hp30.txt _site/kiosk/hp30.txt 2>/dev/null || true

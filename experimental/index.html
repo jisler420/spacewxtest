@@ -336,10 +336,27 @@ function parseHemiSeries(txt){
     const obs=parseT(String(p[0]).replace("_","T"));
     const fcst=parseT(String(p[1]).replace("_","T"));
     const n=+p[2], s=+p[3];
-    if(isFinite(fcst)&&isFinite(n)&&isFinite(s)) out.push({obs:obs,fcst:fcst,n:n,s:s});
+    if(isFinite(obs)&&isFinite(fcst)&&isFinite(n)&&isFinite(s)) out.push({obs:obs,fcst:fcst,n:n,s:s});
   });
   return out;
 }
+const HEMI_KEEP=8*3600000;
+const HEMI_LS="spacewx-hemi";
+function mergeHemi(rows){
+  const by=Object.create(null);
+  (hemiSeries||[]).concat(rows||[]).forEach(function(r){
+    if(r&&isFinite(r.obs)) by[r.obs]=r;
+  });
+  const cut=Date.now()-HEMI_KEEP;
+  hemiSeries=Object.keys(by).map(Number).sort(function(a,b){return a-b}).map(function(k){return by[k]}).filter(function(r){return r.obs>=cut});
+  try{localStorage.setItem(HEMI_LS, JSON.stringify(hemiSeries))}catch(e){}
+}
+(function loadHemiCache(){
+  try{
+    const j=JSON.parse(localStorage.getItem(HEMI_LS)||"[]");
+    if(Array.isArray(j)&&j.length) mergeHemi(j);
+  }catch(e){}
+})();
 const HP_SCALES=[25,50,75,100,125,150,175,200,250];
 function hpScale(peak){
   const p=Math.max(0,peak);
@@ -471,11 +488,15 @@ function drawHemiPlot(){
 }
 function applyHemi(hemi, ts){
   const rows=hemi?parseHemiSeries(hemi):[];
-  if(rows.length){ hemiSeries=rows; hemiPolledAt=ts||Date.now(); }
+  if(rows.length){ mergeHemi(rows); hemiPolledAt=ts||Date.now(); }
   drawHemiPlot();
 }
 async function refreshHemi(){
-  const txt=await settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt");
+  const [txt, snap]=await Promise.all([
+    settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt"),
+    settled("../data/hemi-archive.txt")
+  ]);
+  if(snap) applyHemi(snap);
   if(txt) applyHemi(txt);
   else try{drawHemiPlot()}catch(e){}
 }
@@ -744,7 +765,7 @@ async function loadWindImf(){
   markUpdated();
 }
 async function loadWx(){
-  const [kp,sc,kf,dayTxt,dst,dstPred,hemi,kp1m]=await Promise.all([
+  const [kp,sc,kf,dayTxt,dst,dstPred,hemi,hemiSnap,kp1m]=await Promise.all([
     settled("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"),
     settled("https://services.swpc.noaa.gov/products/noaa-scales.json"),
     settled("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"),
@@ -752,6 +773,7 @@ async function loadWx(){
     settled("https://services.swpc.noaa.gov/products/kyoto-dst.json"),
     settled("https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json"),
     settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt"),
+    settled("../data/hemi-archive.txt"),
     settled("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json")
   ]);
   const k=Number((newestByTime(kp)||last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(newestByTime(kp)||last(kp)||{}).time_tag,"kp")}
@@ -761,6 +783,7 @@ async function loadWx(){
   if(Array.isArray(dst)){cache.dst=dst.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
   if(Array.isArray(dstPred)){cache.dstPred=dstPred.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
   if(Array.isArray(dst)||Array.isArray(dstPred)) drawDst();
+  if(hemiSnap) applyHemi(hemiSnap);
   if(hemi) applyHemi(hemi);
   if(kp1m) drawKp1m(kp1m);
   drawSw();
@@ -856,6 +879,7 @@ function applyWorkerData(data){
   if(data.hp) hapiPack.hp=data.hp;
   if(data.mag||data.plasma||data.enlil||data.hp) drawWindImf();
   if(data.kp1m) drawKp1m(data.kp1m);
+  if(data.hemiSnap) applyHemi(data.hemiSnap, data.fetchedAt||Date.now());
   if(data.kp||data.sc||data.kf||data.dayTxt||data.dst||data.dstPred||data.hemi){
     const kp=data.kp,sc=data.sc,kf=data.kf,dayTxt=data.dayTxt,dst=data.dst,hemi=data.hemi;
     const k=Number((newestByTime(kp)||last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(newestByTime(kp)||last(kp)||{}).time_tag,"kp")}
@@ -892,7 +916,7 @@ try{drawHemiPlot()}catch(e){}
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=poll7", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=hemiArch", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

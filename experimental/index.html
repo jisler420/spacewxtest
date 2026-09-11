@@ -73,7 +73,8 @@ a.imglink{display:block;cursor:zoom-in}
 a.imglink img{cursor:zoom-in}
 canvas.chart{height:210px;background:#0a0e18}
 .muted{color:var(--muted);font-size:12px}
-.pagefoot{text-align:center;padding:8px 14px 24px;padding-bottom:max(24px,env(safe-area-inset-bottom));color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.pagefoot{text-align:center;padding:4px 14px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.pagefoot:last-child{padding-bottom:max(24px,env(safe-area-inset-bottom))}
 .kpi b.down,.muted.down,#kpForecast.down{color:var(--bad);font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}
 .card img{max-height:min(70vh,560px);object-fit:contain}
 .player{display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -206,6 +207,7 @@ th:first-child,td:first-child{text-align:left}
   </div>
 </main>
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
+  <div class="pagefoot">© 2026 SpaceWx · data: NOAA SWPC · KNMI · GFZ · Kyoto</div>
 </div>
 <script>
 (function(){

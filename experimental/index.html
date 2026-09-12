@@ -149,7 +149,7 @@ th:first-child,td:first-child{text-align:left}
       </div>
       <div class="when" id="tKp1m">—</div>
     </div>
-    <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
+    <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">Horizon view line · this location</div></div>
     <div class="kpi">
       <span>Disturbance Storm Time Index</span>
       <div class="dstpair">
@@ -212,7 +212,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.12.01</div>
+  <div class="pagefoot">V00.13.00</div>
 </div>
 <script>
 (function(){
@@ -747,6 +747,7 @@ function drawKp1m(row){
   if(el15&&isFinite(a15)){ el15.textContent=a15.toFixed(2); tone(el15,"kp",a15); }
   const el30=document.getElementById("vKp30");
   if(el30&&isFinite(a30)){ el30.textContent=a30.toFixed(2); tone(el30,"kp",a30); }
+  updateAuroraView();
 }
 function parseGfzHp30(txt){
   const rows=[];
@@ -776,6 +777,7 @@ function drawHp30(){
   const rowT=Math.max(knR.t||0, gfR.t||parseT(gfR.time_tag)||0);
   if(isFinite(num)){vHp30.textContent=Number(num).toFixed(1);tone(vHp30,"hp",num)}
   if(rowT||isFinite(goodT)) stampWhen("tHp30", rowT||goodT, "hp", goodT);
+  updateAuroraView();
 }
 function drawAll(){drawWindImf();drawHemiPlot()}
 async function loadWindImf(){
@@ -863,6 +865,78 @@ let baseImg=null,auroraData=null;
 function xy(lon,lat,w,h){const xlon=lon>180?lon-360:lon;return [((xlon+180)/360)*w,((90-lat)/180)*h]}
 function ovationColor(p){if(p<8)return [0,0,0,0];const t=Math.min(1,(p-8)/70);if(t<0.45){const u=t/0.45;return [20,Math.round(140+u*80),30,Math.round(50+u*90)]}if(t<0.75){const u=(t-0.45)/0.3;return [Math.round(40+u*180),Math.round(220-u*20),Math.round(20+u*20),Math.round(140+u*40)]}const u=(t-0.75)/0.25;return [Math.round(220+u*35),Math.round(230+u*25),Math.round(80+u*140),210]}
 function paintOvation(coords){const gw=360,gh=181,grid=new Float32Array(gw*gh);for(let i=0;i<coords.length;i++){const p=coords[i];if(!p||p.length<3||p[2]<8||Math.abs(p[1])<22)continue;let lon=p[0];if(lon>180)lon-=360;const ix=Math.max(0,Math.min(gw-1,Math.round(((lon+180)/360)*(gw-1))));const iy=Math.max(0,Math.min(gh-1,Math.round(((90-p[1])/180)*(gh-1))));const j=iy*gw+ix;if(p[2]>grid[j])grid[j]=p[2]}const img=new ImageData(gw,gh);for(let i=0;i<grid.length;i++){const c=ovationColor(grid[i]),o=i*4;img.data[o]=c[0];img.data[o+1]=c[1];img.data[o+2]=c[2];img.data[o+3]=c[3]}return img}
+const OVAL_MLAT=[67.5,66.1,64.4,62.4,60.4,58.1,55.7,53.1,50.1,46.5];
+function currentKpView(){
+  function num(id){const el=document.getElementById(id); if(!el) return NaN; return parseFloat(String(el.textContent||"").replace(/[^\d.+-]/g,""));}
+  const hp=num("vHp30"), k5=num("vKp5"), k15=num("vKp15"), k3=num("vKp");
+  const cands=[hp,k5,k15,k3].filter(isFinite);
+  if(!cands.length) return 2;
+  return Math.max.apply(null, cands);
+}
+function lerpMlat(table, kp){
+  if(!isFinite(kp)) kp=2;
+  kp=Math.max(0,Math.min(9,kp));
+  const i=Math.floor(kp), f=kp-i;
+  if(i>=9) return table[9];
+  return table[i]+f*(table[i+1]-table[i]);
+}
+function extraViewDeg(kp){
+  if(!isFinite(kp)) kp=2;
+  kp=Math.max(0,Math.min(9,kp));
+  return 4 + kp * (10/9);
+}
+function ovalMlat(kp){ return lerpMlat(OVAL_MLAT, kp); }
+function viewMlat(kp){ return ovalMlat(kp) - extraViewDeg(kp); }
+function magLat(lat, lon){
+  const φp=80.8*Math.PI/180, λp=-72.6*Math.PI/180;
+  const φ=lat*Math.PI/180, λ=lon*Math.PI/180;
+  const cosc=Math.sin(φp)*Math.sin(φ)+Math.cos(φp)*Math.cos(φ)*Math.cos(λ-λp);
+  const c=Math.acos(Math.max(-1,Math.min(1,cosc)));
+  return 90-c*180/Math.PI;
+}
+function geoLatForMlat(want, lon){
+  let lo=-89, hi=89;
+  for(let n=0;n<28;n++){
+    const mid=(lo+hi)/2;
+    if(magLat(mid, lon)<want) lo=mid; else hi=mid;
+  }
+  return (lo+hi)/2;
+}
+function viewPctAt(lat, lon){
+  const kp=currentKpView();
+  const oval=ovalMlat(kp);
+  const view=viewMlat(kp);
+  const m=Math.abs(magLat(lat, lon));
+  const span=Math.max(1, oval-view);
+  if(m>=oval) return 100;
+  if(m<=view) return 0;
+  return Math.max(0, Math.min(100, 100*(m-view)/span));
+}
+function updateAuroraView(){
+  if(!vAurora) return;
+  const pct=viewPctAt(cfg.lat, cfg.lon);
+  vAurora.textContent=Math.round(pct)+"%";
+  tone(vAurora,"pct",pct);
+  try{drawEarth()}catch(e){}
+}
+function drawViewLine(ctx,w,h){
+  const kp=currentKpView();
+  const V=viewMlat(kp);
+  ctx.save();
+  ctx.setLineDash([8,4]);
+  ctx.strokeStyle="#ef4444";
+  ctx.lineWidth=2.2;
+  ctx.lineJoin="round";
+  [[V,1],[-V,-1]].forEach(function(pair){
+    ctx.beginPath();
+    for(let lng=-180,i=0;lng<=180;lng+=2,i++){
+      const p=xy(lng, geoLatForMlat(pair[0], lng), w, h);
+      if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
+    }
+    ctx.stroke();
+  });
+  ctx.restore();
+}
 function drawEarth(){
   const el=document.getElementById("earth"),box=el&&el.parentElement;if(!el||!box)return;
   const w=Math.max(320,box.clientWidth),h=Math.max(160,box.clientHeight),dpr=Math.min(2,window.devicePixelRatio||1);
@@ -877,6 +951,7 @@ function drawEarth(){
   ctx.closePath();ctx.fillStyle="rgba(0,0,0,0.42)";ctx.fill();
   ctx.beginPath();line.forEach(function(p,i){i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])});ctx.strokeStyle="rgba(226,232,240,0.7)";ctx.lineWidth=1.2;ctx.stroke();
   if(auroraData){const off=document.createElement("canvas");off.width=auroraData.width;off.height=auroraData.height;off.getContext("2d").putImageData(auroraData,0,0);ctx.save();ctx.imageSmoothingEnabled=true;ctx.globalCompositeOperation="screen";ctx.filter="blur(1.6px)";ctx.drawImage(off,0,0,w,h);ctx.restore()}
+  drawViewLine(ctx,w,h);
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();
 }
 async function loadAurora(){
@@ -884,14 +959,10 @@ async function loadAurora(){
   if(!o){if(!hasValue(vAurora)) setDown(vAurora);return}
   const coords=o.coordinates||o;
   auroraData=paintOvation(coords);
-  let best=0,bestD=1e9;
-  for(let i=0;i<coords.length;i++){const p=coords[i];if(!p||p.length<3)continue;const lon=p[0]>180?p[0]-360:p[0],dd=(p[1]-cfg.lat)*(p[1]-cfg.lat)+(lon-cfg.lon)*(lon-cfg.lon);if(dd<bestD){bestD=dd;best=p[2]}}
-  vAurora.textContent=Math.round(best)+"%";
-  tone(vAurora,"pct",best);
   const obs=o["Observation Time"]||o["Forecast Time"]||"";
   stampWhen("tAurora", obs, "hemi");
-  mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")):"equirectangular Earth · poles + OVATION";
-  drawEarth();
+  mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · red = view line"):"equirectangular Earth · poles + OVATION · red = view line";
+  updateAuroraView();
 }
 (function(){const img=new Image();img.crossOrigin="anonymous";img.onload=function(){baseImg=img;drawEarth()};img.src=BASE})();
 
@@ -950,14 +1021,10 @@ function applyWorkerData(data){
     const coords=data.aurora.coordinates||data.aurora;
     if(Array.isArray(coords)){
       auroraData=paintOvation(coords);
-      let best=0,bestD=1e9;
-      for(let i=0;i<coords.length;i++){const p=coords[i];if(!p||p.length<3)continue;const lon=p[0]>180?p[0]-360:p[0],dd=(p[1]-cfg.lat)*(p[1]-cfg.lat)+(lon-cfg.lon)*(lon-cfg.lon);if(dd<bestD){bestD=dd;best=p[2]}}
-      vAurora.textContent=Math.round(best)+"%";
-      tone(vAurora,"pct",best);
       const obs=data.aurora["Observation Time"]||data.aurora["Forecast Time"]||"";
       stampWhen("tAurora", obs, "hemi");
-      mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")):"equirectangular Earth · poles + OVATION";
-      drawEarth();
+      mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · red = view line"):"equirectangular Earth · poles + OVATION · red = view line";
+      updateAuroraView();
     }
   }
 }
@@ -968,7 +1035,7 @@ refreshHemi();
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001201", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001300", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

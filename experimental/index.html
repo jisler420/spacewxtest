@@ -214,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.01</div>
+  <div class="pagefoot">V00.14.02</div>
 </div>
 <script>
 (function(){
@@ -992,7 +992,15 @@ function updateAuroraView(){
   const pct=viewPctAt(cfg.lat, cfg.lon);
   vAurora.textContent=Math.round(pct)+"%";
   tone(vAurora,"pct",pct);
-  try{ if(globeCtl) globeCtl.refresh(); else drawEarth(); }catch(e){}
+  if(globeCtl){
+    if(updateAuroraView._g) return;
+    updateAuroraView._g=setTimeout(function(){
+      updateAuroraView._g=0;
+      try{globeCtl.refresh()}catch(e){}
+    }, 500);
+  }else{
+    try{drawEarth()}catch(e){}
+  }
 }
 function drawViewLine(ctx,w,h){
   function strokePoly(arr){
@@ -1093,7 +1101,7 @@ function tick(){
     const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
   }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
-  if(min!==tick._termMin){tick._termMin=min; try{ if(globeCtl) globeCtl.refresh(); else drawEarth(); }catch(e){}}
+  if(min!==tick._termMin){tick._termMin=min; try{ if(!globeCtl) drawEarth(); }catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -1185,17 +1193,17 @@ function loadScript(src){
     document.head.appendChild(s);
   });
 }
-function ovationHeat(){
+function ovationHex(){
   const pts=[];
   const src=ovationCoords||[];
-  const step=Math.max(1, Math.floor(src.length/4000));
+  const step=Math.max(1, Math.floor(src.length/2500));
   for(let i=0;i<src.length;i+=step){
     const p=src[i];
-    if(!p||p.length<3||p[2]<10||Math.abs(p[1])<22) continue;
+    if(!p||p.length<3||p[2]<12||Math.abs(p[1])<22) continue;
     let lon=p[0]; if(lon>180) lon-=360;
-    pts.push([p[1], lon, p[2]]);
+    pts.push({lat:p[1], lng:lon, w:p[2]});
   }
-  return pts.length?[{points:pts}]:[];
+  return pts;
 }
 function viewPaths(){
   function toCoords(arr){
@@ -1204,8 +1212,8 @@ function viewPaths(){
   }
   const out=[];
   const n=toCoords(viewLineN), s=toCoords(viewLineS);
-  if(n) out.push({coords:n});
-  if(s) out.push({coords:s});
+  if(n&&n.length) out.push({coords:n});
+  if(s&&s.length) out.push({coords:s});
   return out;
 }
 async function startGlobe(){
@@ -1225,23 +1233,29 @@ async function startGlobe(){
     .globeImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg")
     .bumpImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png")
     .pointsData([{lat:cfg.lat, lng:cfg.lon}])
+    .pointLat("lat")
+    .pointLng("lng")
     .pointColor(function(){return "#fb923c"})
     .pointAltitude(0.02)
     .pointRadius(0.55)
-    .pointLabel(function(){return "observer"})
     .pathsData(viewPaths())
+    .pathPoints("coords")
+    .pathPointLat(function(p){return Array.isArray(p)?p[0]:p.lat})
+    .pathPointLng(function(p){return Array.isArray(p)?p[1]:(p.lng||p.lon)})
     .pathColor(function(){return "#ef4444"})
-    .pathStroke(1.4)
-    .pathPointAlt(0.014)
+    .pathStroke(1.6)
+    .pathPointAlt(0.016)
     .pathDashLength(0.04)
     .pathDashGap(0.02)
-    .pathDashAnimateTime(0)
+    .hexBinPointsData(ovationHex())
+    .hexBinPointLat("lat")
+    .hexBinPointLng("lng")
+    .hexBinPointWeight("w")
+    .hexBinResolution(3)
+    .hexTopColor(function(){return "rgba(74,222,128,0.85)"})
+    .hexSideColor(function(){return "rgba(22,101,52,0.35)"})
+    .hexAltitude(function(d){return 0.01+Math.min(0.12,(d.sumWeight||0)/800)})
     (el);
-  try{
-    world.heatmapsData(ovationHeat())
-      .heatmapBandwidth(2.4)
-      .heatmapColorFn(function(t){return t<0.15?"rgba(0,0,0,0)":("rgba("+(20+Math.round(t*80))+","+(180+Math.round(t*40))+",40,"+(0.15+t*0.55)+")");});
-  }catch(e){}
   world.width(el.clientWidth||el.offsetWidth);
   world.height(el.clientHeight||el.offsetWidth);
   const ctl=world.controls();
@@ -1252,9 +1266,9 @@ async function startGlobe(){
   ctl.maxDistance=480;
   ctl.addEventListener("start", function(){ ctl.autoRotate=false; });
   function refresh(){
-    world.pointsData([{lat:cfg.lat, lng:cfg.lon}]);
-    world.pathsData(viewPaths());
-    world.heatmapsData(ovationHeat());
+    try{ world.pointsData([{lat:cfg.lat, lng:cfg.lon}]); }catch(e){}
+    try{ world.pathsData(viewPaths()); }catch(e){}
+    try{ world.hexBinPointsData(ovationHex()); }catch(e){}
   }
   function resize(){
     world.width(el.clientWidth||400);

@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.12</div>
+  <div class="pagefoot">V00.14.13</div>
 </div>
 <script>
 (function(){
@@ -1029,9 +1029,9 @@ function drawViewLine(ctx,w,h){
   const lines=[viewLineN, viewLineS];
   const has=lines.some(function(a){return a&&a.length>8});
   ctx.save();
-  ctx.setLineDash([8,4]);
-  ctx.strokeStyle="#ef4444";
-  ctx.lineWidth=2.2;
+  ctx.setLineDash([10,6]);
+  ctx.strokeStyle="rgba(241,245,249,0.9)";
+  ctx.lineWidth=1.6;
   ctx.lineJoin="round";
   ctx.lineCap="round";
   if(has){

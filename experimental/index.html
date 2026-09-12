@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.14</div>
+  <div class="pagefoot">V00.14.15</div>
 </div>
 <script>
 (function(){
@@ -1237,33 +1237,56 @@ function viewPaths(){
   if(s) out.push({coords:s});
   return out;
 }
-const EARTH_NIGHT="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg";
-function bakeGlobeTex(){
+const NIGHT_MAPS=[
+  "https://eoimages.gsfc.nasa.gov/images/imagerecords/79000/79765/dnb_land_ocean_ice.2012.3600x1800.jpg",
+  "https://cdn.jsdelivr.net/gh/turban/webgl-earth@master/images/5_night_4k.jpg",
+  "https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg"
+];
+function loadNightImg(){
   return new Promise(function(res){
-    const img=new Image();
-    img.crossOrigin="anonymous";
-    img.onload=function(){
-      const c=document.createElement("canvas");
-      c.width=2048; c.height=1024;
-      const ctx=c.getContext("2d");
-      ctx.imageSmoothingEnabled=true;
-      ctx.imageSmoothingQuality="high";
-      ctx.drawImage(img,0,0,c.width,c.height);
-      if(auroraData){
-        const off=document.createElement("canvas");
-        off.width=auroraData.width; off.height=auroraData.height;
-        off.getContext("2d").putImageData(auroraData,0,0);
-        ctx.save();
-        ctx.filter="blur(6px)";
-        ctx.globalCompositeOperation="screen";
-        ctx.globalAlpha=0.88;
-        ctx.drawImage(off,0,0,c.width,c.height);
-        ctx.restore();
-      }
-      res(c.toDataURL("image/jpeg", 0.9));
-    };
-    img.onerror=function(){ res(EARTH_NIGHT); };
-    img.src=EARTH_NIGHT;
+    let i=0;
+    function tryNext(){
+      if(i>=NIGHT_MAPS.length){ res(null); return; }
+      const src=NIGHT_MAPS[i++];
+      const img=new Image();
+      img.crossOrigin="anonymous";
+      img.onload=function(){ img.naturalWidth>100 ? res(img) : tryNext(); };
+      img.onerror=tryNext;
+      img.src=src;
+    }
+    tryNext();
+  });
+}
+function bakeGlobeTex(){
+  return loadNightImg().then(function(img){
+    const c=document.createElement("canvas");
+    const maxW=3600;
+    let w=img?img.naturalWidth:2048, h=img?img.naturalHeight:1024;
+    if(w>maxW){ h=Math.round(h*maxW/w); w=maxW; }
+    c.width=w; c.height=h;
+    const ctx=c.getContext("2d");
+    ctx.imageSmoothingEnabled=true;
+    ctx.imageSmoothingQuality="high";
+    ctx.fillStyle="#05070c";
+    ctx.fillRect(0,0,w,h);
+    if(img){
+      ctx.filter="contrast(1.18) saturate(1.08) brightness(1.06)";
+      ctx.drawImage(img,0,0,w,h);
+      ctx.filter="none";
+    }
+    if(auroraData){
+      const off=document.createElement("canvas");
+      off.width=auroraData.width; off.height=auroraData.height;
+      off.getContext("2d").putImageData(auroraData,0,0);
+      const blur=Math.max(1.2, Math.round(w/1400));
+      ctx.save();
+      ctx.filter="blur("+blur+"px)";
+      ctx.globalCompositeOperation="screen";
+      ctx.globalAlpha=0.82;
+      ctx.drawImage(off,0,0,w,h);
+      ctx.restore();
+    }
+    return c.toDataURL("image/jpeg", 0.93);
   });
 }
 function globePin(){
@@ -1341,6 +1364,10 @@ async function startGlobe(){
   world.width(el.clientWidth||el.offsetWidth);
   world.height(el.clientHeight||el.offsetHeight);
   world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:2.05}, 0);
+  try{
+    const m=world.globeMaterial();
+    if(m&&m.map){ m.map.anisotropy=8; m.map.needsUpdate=true; }
+  }catch(e){}
   const ctl=world.controls();
   ctl.autoRotate=true;
   ctl.autoRotateSpeed=0.18;

@@ -214,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.06</div>
+  <div class="pagefoot">V00.14.07</div>
 </div>
 <script>
 (function(){
@@ -1213,87 +1213,31 @@ function viewPaths(){
   return out;
 }
 const EARTH_NIGHT="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg";
-function sunLatLng(){
-  const d=new Date(), start=Date.UTC(d.getUTCFullYear(),0,1), dayNum=(d-start)/864e5+1;
-  const decl=-23.44*Math.cos((2*Math.PI/365)*(dayNum+10));
-  const min=d.getUTCHours()*60+d.getUTCMinutes();
-  return {lat:decl, lng:180-min/4};
-}
 function bakeGlobeTex(){
   return new Promise(function(res){
-    const dayImg=new Image(), nightImg=new Image();
-    let left=2;
-    function finish(){
-      if(--left) return;
-      const w=2048, h=1024;
+    const img=new Image();
+    img.crossOrigin="anonymous";
+    img.onload=function(){
       const c=document.createElement("canvas");
-      c.width=w; c.height=h;
+      c.width=2048; c.height=1024;
       const ctx=c.getContext("2d");
-      ctx.fillStyle="#070b12";
-      ctx.fillRect(0,0,w,h);
-      if(dayImg.naturalWidth) ctx.drawImage(dayImg,0,0,w,h);
-      if(nightImg.naturalWidth){
-        const nc=document.createElement("canvas");
-        nc.width=w; nc.height=h;
-        nc.getContext("2d").drawImage(nightImg,0,0,w,h);
-        const dayData=ctx.getImageData(0,0,w,h);
-        const nightData=nc.getContext("2d").getImageData(0,0,w,h);
-        const dd=dayData.data, nn=nightData.data;
-        const sun=sunLatLng();
-        const rad=Math.PI/180, sinD=Math.sin(sun.lat*rad), cosD=Math.cos(sun.lat*rad);
-        for(let y=0;y<h;y++){
-          const latR=(90-(y/h)*180)*rad, sinLat=Math.sin(latR), cosLat=Math.cos(latR);
-          for(let x=0;x<w;x++){
-            const lon=x/w*360-180;
-            const cosz=sinLat*sinD+cosLat*cosD*Math.cos((lon-sun.lng)*rad);
-            const i=(y*w+x)*4;
-            let u=0;
-            if(cosz<=-0.08) u=1;
-            else if(cosz<0.12) u=1-(cosz+0.08)/0.2;
-            if(u>0){
-              dd[i]=dd[i]*(1-u)+nn[i]*u;
-              dd[i+1]=dd[i+1]*(1-u)+nn[i+1]*u;
-              dd[i+2]=dd[i+2]*(1-u)+nn[i+2]*u;
-            }
-          }
-        }
-        ctx.putImageData(dayData,0,0);
-      }
+      ctx.drawImage(img,0,0,c.width,c.height);
       if(auroraData){
         const off=document.createElement("canvas");
         off.width=auroraData.width; off.height=auroraData.height;
         off.getContext("2d").putImageData(auroraData,0,0);
         ctx.save();
-        ctx.filter="blur(1.8px)";
+        ctx.filter="blur(7px)";
         ctx.globalCompositeOperation="screen";
-        ctx.drawImage(off,0,0,w,h);
+        ctx.globalAlpha=0.9;
+        ctx.drawImage(off,0,0,c.width,c.height);
         ctx.restore();
       }
-      res(c.toDataURL("image/jpeg", 0.88));
-    }
-    dayImg.crossOrigin=nightImg.crossOrigin="anonymous";
-    dayImg.onload=dayImg.onerror=finish;
-    nightImg.onload=nightImg.onerror=finish;
-    dayImg.src=BASE.replace("size=1600,756","size=2048,1024");
-    nightImg.src=EARTH_NIGHT;
+      res(c.toDataURL("image/jpeg", 0.86));
+    };
+    img.onerror=function(){ res(EARTH_NIGHT); };
+    img.src=EARTH_NIGHT;
   });
-}
-function terminatorCoords(){
-  const sun=sunLatLng();
-  const rad=Math.PI/180, t=Math.tan(sun.lat*rad);
-  const coords=[];
-  for(let lng=-180;lng<=180;lng+=2){
-    let lat=0;
-    if(Math.abs(t)>1e-6) lat=Math.atan(-Math.cos((lng-sun.lng)*rad)/t)/rad;
-    coords.push([Math.max(-89.5, Math.min(89.5, lat)), lng]);
-  }
-  return coords;
-}
-function allPaths(){
-  const out=viewPaths().map(function(p){ p.kind="view"; return p; });
-  const t=terminatorCoords();
-  if(t.length>8) out.push({coords:t, kind:"term"});
-  return out;
 }
 function globePin(){
   return [{lat:cfg.lat, lng:cfg.lon, pct:Math.round(viewPctAt(cfg.lat, cfg.lon))}];
@@ -1317,30 +1261,26 @@ async function startGlobe(){
     .backgroundColor("#070b12")
     .showGlobe(true)
     .showAtmosphere(true)
-    .atmosphereColor("#2a3548")
-    .atmosphereAltitude(0.12)
+    .atmosphereColor("#243656")
+    .atmosphereAltitude(0.14)
     .globeImageUrl(tex)
     .htmlElementsData(globePin())
     .htmlLat("lat")
     .htmlLng("lng")
     .htmlElement(pinEl)
     .htmlAltitude(0.015)
-    .pathsData(allPaths())
+    .pathsData(viewPaths())
     .pathPoints("coords")
     .pathPointLat(function(p){return Array.isArray(p)?p[0]:p.lat})
     .pathPointLng(function(p){return Array.isArray(p)?p[1]:(p.lng||p.lon)})
-    .pathColor(function(d){return d.kind==="term"?"rgba(226,232,240,0.75)":"#ef4444"})
-    .pathStroke(function(d){return d.kind==="term"?0.45:0.7})
+    .pathColor(function(){return "#ef4444"})
+    .pathStroke(0.7)
     .pathPointAlt(0.008)
     .pathResolution(3)
     (el);
   world.width(el.clientWidth||el.offsetWidth);
   world.height(el.clientHeight||el.offsetHeight);
   world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:2.05}, 0);
-  try{
-    const m=world.globeMaterial();
-    if(m){ m.shininess=0; if(m.specular&&m.specular.setHex) m.specular.setHex(0x000000); }
-  }catch(e){}
   const ctl=world.controls();
   ctl.autoRotate=true;
   ctl.autoRotateSpeed=0.18;
@@ -1350,7 +1290,7 @@ async function startGlobe(){
   ctl.addEventListener("start", function(){ ctl.autoRotate=false; });
   function refresh(){
     try{ world.htmlElementsData(globePin()); }catch(e){}
-    try{ world.pathsData(allPaths()); }catch(e){}
+    try{ world.pathsData(viewPaths()); }catch(e){}
   }
   async function paint(){
     try{ world.globeImageUrl(await bakeGlobeTex()); }catch(e){}

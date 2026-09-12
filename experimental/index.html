@@ -214,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.04</div>
+  <div class="pagefoot">V00.14.05</div>
 </div>
 <script>
 (function(){
@@ -1101,7 +1101,7 @@ function tick(){
     const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
   }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
-  if(min!==tick._termMin){tick._termMin=min; try{ if(!globeCtl) drawEarth(); }catch(e){}}
+  if(min!==tick._termMin){tick._termMin=min; try{ if(globeCtl&&globeCtl.sun) globeCtl.sun(); else if(!globeCtl) drawEarth(); }catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -1213,31 +1213,80 @@ function viewPaths(){
   return out;
 }
 const EARTH_NIGHT="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg";
+const EARTH_DAY="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg";
 function bakeGlobeTex(){
   return new Promise(function(res){
-    const img=new Image();
-    img.crossOrigin="anonymous";
-    img.onload=function(){
-      const c=document.createElement("canvas");
-      c.width=2048; c.height=1024;
-      const ctx=c.getContext("2d");
-      ctx.drawImage(img,0,0,c.width,c.height);
+    const dayImg=new Image(), nightImg=new Image();
+    let left=2;
+    function finish(){
+      if(--left) return;
+      const day=document.createElement("canvas");
+      day.width=2048; day.height=1024;
+      const dctx=day.getContext("2d");
+      if(dayImg.naturalWidth) dctx.drawImage(dayImg,0,0,2048,1024);
+      else dctx.fillStyle="#1a365d", dctx.fillRect(0,0,2048,1024);
+      const ni=document.createElement("canvas");
+      ni.width=2048; ni.height=1024;
+      const nctx=ni.getContext("2d");
+      if(nightImg.naturalWidth) nctx.drawImage(nightImg,0,0,2048,1024);
       if(auroraData){
         const off=document.createElement("canvas");
         off.width=auroraData.width; off.height=auroraData.height;
         off.getContext("2d").putImageData(auroraData,0,0);
-        ctx.save();
-        ctx.filter="blur(7px)";
-        ctx.globalCompositeOperation="screen";
-        ctx.globalAlpha=0.9;
-        ctx.drawImage(off,0,0,c.width,c.height);
-        ctx.restore();
+        nctx.save();
+        nctx.filter="blur(7px)";
+        nctx.globalCompositeOperation="screen";
+        nctx.globalAlpha=0.95;
+        nctx.drawImage(off,0,0,2048,1024);
+        nctx.restore();
       }
-      res(c.toDataURL("image/jpeg", 0.86));
-    };
-    img.onerror=function(){ res(EARTH_NIGHT); };
-    img.src=EARTH_NIGHT;
+      res({day:day.toDataURL("image/jpeg",0.86), night:ni.toDataURL("image/jpeg",0.86)});
+    }
+    dayImg.crossOrigin=nightImg.crossOrigin="anonymous";
+    dayImg.onload=dayImg.onerror=finish;
+    nightImg.onload=nightImg.onerror=finish;
+    dayImg.src=EARTH_DAY;
+    nightImg.src=EARTH_NIGHT;
   });
+}
+function sunLatLng(){
+  const d=new Date(), start=Date.UTC(d.getUTCFullYear(),0,1), dayNum=(d-start)/864e5+1;
+  const decl=-23.44*Math.cos((2*Math.PI/365)*(dayNum+10));
+  const min=d.getUTCHours()*60+d.getUTCMinutes();
+  return {lat:decl, lng:180-min/4};
+}
+function applySun(world){
+  if(!world||!world.scene) return;
+  const s=sunLatLng();
+  let pos=null;
+  try{ if(world.getCoords) pos=world.getCoords(s.lat, s.lng, 8); }catch(e){}
+  world.scene().traverse(function(o){
+    if(o.isAmbientLight){ o.intensity=0.07; o.color.setHex(0x334155); }
+    if(o.isDirectionalLight){
+      o.intensity=1.65;
+      o.color.setHex(0xfff1d0);
+      if(pos) o.position.copy(pos);
+    }
+  });
+}
+function attachNight(world, nightUrl){
+  const mat=world.globeMaterial && world.globeMaterial();
+  if(!mat||!mat.map) return;
+  const img=new Image();
+  img.crossOrigin="anonymous";
+  img.onload=function(){
+    try{
+      const Tex=mat.map.constructor;
+      const tex=new Tex(img);
+      if(mat.map.colorSpace) tex.colorSpace=mat.map.colorSpace;
+      tex.needsUpdate=true;
+      mat.emissiveMap=tex;
+      if(mat.emissive&&mat.emissive.setRGB) mat.emissive.setRGB(1,1,1);
+      mat.emissiveIntensity=0.85;
+      mat.needsUpdate=true;
+    }catch(e){}
+  };
+  img.src=nightUrl;
 }
 function globePin(){
   return [{lat:cfg.lat, lng:cfg.lon, pct:Math.round(viewPctAt(cfg.lat, cfg.lon))}];
@@ -1261,9 +1310,9 @@ async function startGlobe(){
     .backgroundColor("#070b12")
     .showGlobe(true)
     .showAtmosphere(true)
-    .atmosphereColor("#243656")
-    .atmosphereAltitude(0.14)
-    .globeImageUrl(tex)
+    .atmosphereColor("#4b6d92")
+    .atmosphereAltitude(0.15)
+    .globeImageUrl(tex.day)
     .htmlElementsData(globePin())
     .htmlLat("lat")
     .htmlLng("lng")
@@ -1281,6 +1330,8 @@ async function startGlobe(){
   world.width(el.clientWidth||el.offsetWidth);
   world.height(el.clientHeight||el.offsetHeight);
   world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:2.05}, 0);
+  attachNight(world, tex.night);
+  applySun(world);
   const ctl=world.controls();
   ctl.autoRotate=true;
   ctl.autoRotateSpeed=0.18;
@@ -1291,16 +1342,22 @@ async function startGlobe(){
   function refresh(){
     try{ world.htmlElementsData(globePin()); }catch(e){}
     try{ world.pathsData(viewPaths()); }catch(e){}
+    applySun(world);
   }
   async function paint(){
-    try{ world.globeImageUrl(await bakeGlobeTex()); }catch(e){}
+    try{
+      const t=await bakeGlobeTex();
+      world.globeImageUrl(t.day);
+      attachNight(world, t.night);
+    }catch(e){}
     refresh();
   }
   function resize(){
     world.width(el.clientWidth||640);
     world.height(el.clientHeight||320);
   }
-  globeCtl={refresh:refresh, paint:paint, resize:resize, world:world};
+  globeCtl={refresh:refresh, paint:paint, resize:resize, world:world, sun:function(){applySun(world);}};
+  setInterval(function(){ if(!document.hidden) applySun(world); }, 400);
 }
 startGlobe().then(function(){
   const mb=document.getElementById("mapbox"); if(mb) mb.style.display="none";

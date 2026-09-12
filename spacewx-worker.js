@@ -221,11 +221,10 @@ async function collect(kind, signal) {
   const wantSlow = kind === "slow" || kind === "all";
 
   if (wantFast) {
-    const [mag, plasma, dstGot, aurora, kp1mGot] = await Promise.all([
+    const [mag, plasma, dstGot, kp1mGot] = await Promise.all([
       hapi("solar_wind_mag_rt", "bt,bx_gsm,by_gsm,bz_gsm", hapiStart(series.mag), stop, signal),
       hapi("solar_wind_plasma_rt", "density,speed,temperature", hapiStart(series.plasma), stop, signal),
       settled(NOAA.dst, signal),
-      ovationIfNew(signal),
       settled(NOAA.kp1m, signal),
     ]);
     series.mag = mergeRows(series.mag, mag);
@@ -248,16 +247,6 @@ async function collect(kind, signal) {
     if (putSeries(out, "mag", series.mag)) changed = true;
     if (putSeries(out, "plasma", series.plasma)) changed = true;
     if (dst && putIfChanged(out, "dst", dst.data)) changed = true;
-    if (aurora && aurora.data) {
-      const a = aurora.data;
-      const stamp = String(a["Observation Time"] || a["Forecast Time"] || "") + ":" + ((a.coordinates && a.coordinates.length) || 0);
-      printCache.auroraObs = a["Observation Time"] || "";
-      if (printCache.aurora !== stamp) {
-        printCache.aurora = stamp;
-        out.aurora = a;
-        changed = true;
-      }
-    }
     if (kp1mGot && kp1mGot.data) {
       const rows = Array.isArray(kp1mGot.data) ? kp1mGot.data : [];
       const cut = Date.now() - 35 * 60000;
@@ -272,7 +261,7 @@ async function collect(kind, signal) {
   }
 
   if (wantSlow) {
-    const [enlil, hp, kpGot, sc, kf, dayTxt, dstPred, hemi, hemiSnap, hp30txt] = await Promise.all([
+    const [enlil, hp, kpGot, sc, kf, dayTxt, dstPred, hemi, hemiSnap, hp30txt, aurora] = await Promise.all([
       hapi("solar_wind_plasma_enlil_metoffice", "density,speed,bt", hapiStart(series.enlil), stop, signal),
       hapi("hp30_index", "Hp30", hapiStart(series.hp), stop, signal),
       settled(NOAA.kp, signal),
@@ -283,6 +272,7 @@ async function collect(kind, signal) {
       settled(NOAA.hemi, signal),
       settled(NOAA.hemiSnap, signal),
       settled("./hp30.txt", signal),
+      ovationIfNew(signal),
     ]);
     series.enlil = mergeRows(series.enlil, enlil);
     series.hp = mergeRows(series.hp, hp);
@@ -305,6 +295,16 @@ async function collect(kind, signal) {
     if (hemiSnap && putIfChanged(out, "hemiSnap", hemiSnap.data)) changed = true;
     if (hemi && putIfChanged(out, "hemi", hemi.data)) changed = true;
     if (hp30txt && putIfChanged(out, "hp30txt", hp30txt.data)) changed = true;
+    if (aurora && aurora.data) {
+      const a = aurora.data;
+      const stamp = String(a["Observation Time"] || a["Forecast Time"] || "") + ":" + ((a.coordinates && a.coordinates.length) || 0);
+      printCache.auroraObs = a["Observation Time"] || "";
+      if (printCache.aurora !== stamp) {
+        printCache.aurora = stamp;
+        out.aurora = a;
+        changed = true;
+      }
+    }
   }
 
   out.changed = changed;

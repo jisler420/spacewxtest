@@ -41,8 +41,7 @@ header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-conte
 .short{display:none}
 .maprow{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);gap:12px;align-items:stretch;margin-bottom:12px}
 .mapbox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#000;display:none}
-.globebox{position:relative;width:100%;min-height:420px;aspect-ratio:1/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#070b12}
-#globe{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+.globebox{position:relative;width:100%;min-height:460px;aspect-ratio:1/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#070b12;touch-action:none}
 .maprow .card{height:100%;min-height:220px;min-width:0}
 #earth{position:absolute;inset:0;width:100%;height:100%;display:block}
 td.kp-now{outline:1px solid var(--acc);background:#102018}
@@ -182,7 +181,7 @@ th:first-child,td:first-child{text-align:left}
   </div>
   <div class="maprow">
     <div>
-      <div class="globebox" id="globeBox"><canvas id="globe"></canvas></div>
+      <div class="globebox" id="globeBox"></div>
       <div class="mapbox" id="mapbox"><canvas id="earth"></canvas></div>
       <div class="muted" id="mapStatus">3D globe · drag to spin · scroll to zoom</div>
     </div>
@@ -215,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.00</div>
+  <div class="pagefoot">V00.14.01</div>
 </div>
 <script>
 (function(){
@@ -863,7 +862,7 @@ function loadImgs(){
 }
 
 const BASE="https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/export?bbox=-180,-85,180,85&bboxSR=4326&imageSR=4326&size=1600,756&format=png&f=image";
-let baseImg=null,auroraData=null,globeCtl=null;
+let baseImg=null,auroraData=null,ovationCoords=null,globeCtl=null;
 function xy(lon,lat,w,h){const xlon=lon>180?lon-360:lon;return [((xlon+180)/360)*w,((90-lat)/180)*h]}
 function ovationColor(p){if(p<8)return [0,0,0,0];const t=Math.min(1,(p-8)/70);if(t<0.45){const u=t/0.45;return [20,Math.round(140+u*80),30,Math.round(50+u*90)]}if(t<0.75){const u=(t-0.45)/0.3;return [Math.round(40+u*180),Math.round(220-u*20),Math.round(20+u*20),Math.round(140+u*40)]}const u=(t-0.75)/0.25;return [Math.round(220+u*35),Math.round(230+u*25),Math.round(80+u*140),210]}
 function paintOvation(coords){const gw=360,gh=181,grid=new Float32Array(gw*gh);for(let i=0;i<coords.length;i++){const p=coords[i];if(!p||p.length<3||p[2]<8||Math.abs(p[1])<22)continue;let lon=p[0];if(lon>180)lon-=360;const ix=Math.max(0,Math.min(gw-1,Math.round(((lon+180)/360)*(gw-1))));const iy=Math.max(0,Math.min(gh-1,Math.round(((90-p[1])/180)*(gh-1))));const j=iy*gw+ix;if(p[2]>grid[j])grid[j]=p[2]}const img=new ImageData(gw,gh);for(let i=0;i<grid.length;i++){const c=ovationColor(grid[i]),o=i*4;img.data[o]=c[0];img.data[o+1]=c[1];img.data[o+2]=c[2];img.data[o+3]=c[3]}return img}
@@ -1070,6 +1069,7 @@ async function loadAurora(){
   if(!o){if(!hasValue(vAurora)) setDown(vAurora);return}
   const coords=o.coordinates||o;
   auroraData=paintOvation(coords);
+  ovationCoords=coords;
   buildViewLines(coords);
   const obs=o["Observation Time"]||o["Forecast Time"]||"";
   stampWhen("tAurora", obs, "hemi");
@@ -1133,6 +1133,7 @@ function applyWorkerData(data){
     const coords=data.aurora.coordinates||data.aurora;
     if(Array.isArray(coords)){
       auroraData=paintOvation(coords);
+  ovationCoords=coords;
   buildViewLines(coords);
       const obs=data.aurora["Observation Time"]||data.aurora["Forecast Time"]||"";
       stampWhen("tAurora", obs, "hemi");
@@ -1175,84 +1176,96 @@ document.addEventListener("visibilitychange",function(){
   if(!document.hidden) refreshKpis("all");
 });
 window.addEventListener("resize",function(){ if(globeCtl&&globeCtl.resize) globeCtl.resize(); else drawEarth(); drawAll(); });
-function latLonVec(THREE, lat, lon, r){
-  const phi=(90-lat)*Math.PI/180, theta=(lon+180)*Math.PI/180;
-  return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(theta), r*Math.cos(phi), r*Math.sin(phi)*Math.sin(theta));
+function loadScript(src){
+  return new Promise(function(res, rej){
+    const s=document.createElement("script");
+    s.src=src; s.async=true;
+    s.onload=function(){res()};
+    s.onerror=function(){rej(new Error("script "+src))};
+    document.head.appendChild(s);
+  });
 }
-function sunDir(THREE){
-  const d=new Date(), start=Date.UTC(d.getUTCFullYear(),0,1), day=(d-start)/864e5+1;
-  const decl=-23.44*Math.cos((2*Math.PI/365)*(day+10));
-  const min=d.getUTCHours()*60+d.getUTCMinutes(), lngSun=180-min/4;
-  return latLonVec(THREE, decl, lngSun, 1);
+function ovationHeat(){
+  const pts=[];
+  const src=ovationCoords||[];
+  const step=Math.max(1, Math.floor(src.length/4000));
+  for(let i=0;i<src.length;i+=step){
+    const p=src[i];
+    if(!p||p.length<3||p[2]<10||Math.abs(p[1])<22) continue;
+    let lon=p[0]; if(lon>180) lon-=360;
+    pts.push([p[1], lon, p[2]]);
+  }
+  return pts.length?[{points:pts}]:[];
+}
+function viewPaths(){
+  function toCoords(arr){
+    if(!arr||arr.length<8) return null;
+    return arr.map(function(p){return [p.lat, p.lon];});
+  }
+  const out=[];
+  const n=toCoords(viewLineN), s=toCoords(viewLineS);
+  if(n) out.push({coords:n});
+  if(s) out.push({coords:s});
+  return out;
 }
 async function startGlobe(){
-  const THREE=await import("https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js");
-  const {OrbitControls}=await import("https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/controls/OrbitControls.js");
-  const box=document.getElementById("globeBox"), canvas=document.getElementById("globe");
-  if(!box||!canvas) throw new Error("globe missing");
-  const renderer=new THREE.WebGLRenderer({canvas:canvas, antialias:true});
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
-  renderer.setClearColor(0x070b12, 1);
-  const scene=new THREE.Scene();
-  const camera=new THREE.PerspectiveCamera(42, 1, 0.1, 20);
-  camera.position.set(0.15, 0.35, 2.85);
-  const controls=new OrbitControls(camera, canvas);
-  controls.enableDamping=true; controls.dampingFactor=0.06;
-  controls.minDistance=1.5; controls.maxDistance=5; controls.enablePan=false;
-  scene.add(new THREE.AmbientLight(0x4b5c73, 0.32));
-  const sun=new THREE.DirectionalLight(0xfff1d6, 1.25);
-  scene.add(sun);
-  const R=1;
-  const texLoader=new THREE.TextureLoader();
-  texLoader.crossOrigin="anonymous";
-  const earthMap=await new Promise(function(res, rej){
-    texLoader.load(BASE.replace("size=1600,756","size=2048,1024"), res, undefined, rej);
-  });
-  if(THREE.SRGBColorSpace) earthMap.colorSpace=THREE.SRGBColorSpace;
-  const earth=new THREE.Mesh(new THREE.SphereGeometry(R, 128, 96), new THREE.MeshPhongMaterial({map:earthMap, specular:0x222222, shininess:6}));
-  scene.add(earth);
-  const ovCanvas=document.createElement("canvas"); ovCanvas.width=720; ovCanvas.height=361;
-  const ovTex=new THREE.CanvasTexture(ovCanvas);
-  if(THREE.SRGBColorSpace) ovTex.colorSpace=THREE.SRGBColorSpace;
-  const ovMesh=new THREE.Mesh(new THREE.SphereGeometry(R*1.006, 128, 96), new THREE.MeshBasicMaterial({map:ovTex, transparent:true, opacity:0.92, blending:THREE.AdditiveBlending, depthWrite:false}));
-  scene.add(ovMesh);
-  const viewGroup=new THREE.Group(); scene.add(viewGroup);
-  const userMesh=new THREE.Mesh(new THREE.SphereGeometry(0.016, 16, 16), new THREE.MeshBasicMaterial({color:0xfb923c}));
-  scene.add(userMesh);
-  function resize(){
-    const w=Math.max(280, box.clientWidth||400), h=Math.max(280, box.clientHeight||400);
-    renderer.setSize(w, h, false);
-    camera.aspect=w/h; camera.updateProjectionMatrix();
+  if(typeof Globe!=="function"){
+    await loadScript("https://cdn.jsdelivr.net/npm/globe.gl@2.41.4/dist/globe.gl.min.js");
   }
+  if(typeof Globe!=="function") throw new Error("Globe missing");
+  const el=document.getElementById("globeBox");
+  if(!el) throw new Error("globeBox missing");
+  el.innerHTML="";
+  const world=Globe()
+    .backgroundColor("#070b12")
+    .showGlobe(true)
+    .showAtmosphere(true)
+    .atmosphereColor("#6ea8ff")
+    .atmosphereAltitude(0.22)
+    .globeImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg")
+    .bumpImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png")
+    .pointsData([{lat:cfg.lat, lng:cfg.lon}])
+    .pointColor(function(){return "#fb923c"})
+    .pointAltitude(0.02)
+    .pointRadius(0.55)
+    .pointLabel(function(){return "observer"})
+    .pathsData(viewPaths())
+    .pathColor(function(){return "#ef4444"})
+    .pathStroke(1.4)
+    .pathPointAlt(0.014)
+    .pathDashLength(0.04)
+    .pathDashGap(0.02)
+    .pathDashAnimateTime(0)
+    (el);
+  try{
+    world.heatmapsData(ovationHeat())
+      .heatmapBandwidth(2.4)
+      .heatmapColorFn(function(t){return t<0.15?"rgba(0,0,0,0)":("rgba("+(20+Math.round(t*80))+","+(180+Math.round(t*40))+",40,"+(0.15+t*0.55)+")");});
+  }catch(e){}
+  world.width(el.clientWidth||el.offsetWidth);
+  world.height(el.clientHeight||el.offsetWidth);
+  const ctl=world.controls();
+  ctl.autoRotate=true;
+  ctl.autoRotateSpeed=0.45;
+  ctl.enableDamping=true;
+  ctl.minDistance=120;
+  ctl.maxDistance=480;
+  ctl.addEventListener("start", function(){ ctl.autoRotate=false; });
   function refresh(){
-    if(auroraData){
-      ovCanvas.width=auroraData.width; ovCanvas.height=auroraData.height;
-      ovCanvas.getContext("2d").putImageData(auroraData,0,0);
-      ovTex.needsUpdate=true;
-    }
-    while(viewGroup.children.length) viewGroup.remove(viewGroup.children[0]);
-    [viewLineN, viewLineS].forEach(function(arr){
-      if(!arr||arr.length<8) return;
-      const pts=arr.map(function(p){return latLonVec(THREE, p.lat, p.lon, R*1.012);});
-      const g=new THREE.BufferGeometry().setFromPoints(pts);
-      const ln=new THREE.Line(g, new THREE.LineDashedMaterial({color:0xef4444, dashSize:0.035, gapSize:0.02}));
-      ln.computeLineDistances();
-      viewGroup.add(ln);
-    });
-    userMesh.position.copy(latLonVec(THREE, cfg.lat, cfg.lon, R*1.02));
-    sun.position.copy(sunDir(THREE).multiplyScalar(6));
+    world.pointsData([{lat:cfg.lat, lng:cfg.lon}]);
+    world.pathsData(viewPaths());
+    world.heatmapsData(ovationHeat());
   }
-  function loop(){
-    requestAnimationFrame(loop);
-    if(document.hidden) return;
-    controls.update();
-    renderer.render(scene, camera);
+  function resize(){
+    world.width(el.clientWidth||400);
+    world.height(el.clientHeight||400);
   }
-  resize(); refresh(); loop();
-  globeCtl={refresh:refresh, resize:resize};
+  globeCtl={refresh:refresh, resize:resize, world:world};
 }
 startGlobe().then(function(){
   const mb=document.getElementById("mapbox"); if(mb) mb.style.display="none";
+  const st=document.getElementById("mapStatus");
+  if(st) st.textContent="Night globe · drag to spin · pinch/scroll zoom · red = view line";
 }).catch(function(err){
   console.warn("globe failed", err);
   const gb=document.getElementById("globeBox"); if(gb) gb.style.display="none";

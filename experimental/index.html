@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.21</div>
+  <div class="pagefoot">V00.14.22</div>
 </div>
 <script>
 (function(){
@@ -763,7 +763,8 @@ function drawKp1m(row){
   });
   const times=Object.keys(by).map(Number).sort(function(a,b){return a-b});
   const latestT=times.length?times[times.length-1]:0;
-  const cut=latestT-30*60000;
+  const KEEP=90*60000;
+  const cut=latestT-KEEP;
   kp1mBuf=times.filter(function(t){return t>=cut}).map(function(t){return by[t]});
   const latest=kp1mBuf.length?kp1mBuf[kp1mBuf.length-1]:null;
   if(!latest) return;
@@ -1203,7 +1204,7 @@ refreshHemi();
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001421", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001422", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}
@@ -1445,6 +1446,11 @@ function applyMapMode(mode){
   const HALF=30*60*1000;
   function wait(){return Math.max(1000, HALF-(Date.now()%HALF))}
   function reload(){
+    const utcMin=new Date().getUTCHours()*60+new Date().getUTCMinutes();
+    if(utcMin<5){
+      setTimeout(reload, 5*60000-(Date.now()%60000));
+      return;
+    }
     if(document.hidden){
       document.addEventListener("visibilitychange",function once(){
         if(!document.hidden){document.removeEventListener("visibilitychange",once);location.reload()}

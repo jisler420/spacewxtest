@@ -249,7 +249,12 @@ async function collect(kind, signal) {
     if (dst && putIfChanged(out, "dst", dst.data)) changed = true;
     if (kp1mGot && kp1mGot.data) {
       const rows = Array.isArray(kp1mGot.data) ? kp1mGot.data : [];
-      const cut = Date.now() - 35 * 60000;
+      let tmax = 0;
+      rows.forEach(function (r) {
+        const t = parseT(r && r.time_tag);
+        if (Number.isFinite(t) && t > tmax) tmax = t;
+      });
+      const cut = Math.max(Date.now(), tmax) - 90 * 60000;
       const recent = [];
       rows.forEach(function (r) {
         const t = parseT(r && r.time_tag);

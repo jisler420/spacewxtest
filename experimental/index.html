@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.16</div>
+  <div class="pagefoot">V00.14.17</div>
 </div>
 <script>
 (function(){
@@ -688,7 +688,7 @@ function imfPeak(t0,t1){
 }
 function drawSw(){
   const el=document.getElementById("swPlot"); if(!el)return;
-  const now=Date.now(),t0=now-36*3600000,t1=now+3600000;
+  const now=Date.now(),PAD=3600000,t0=now-36*3600000-PAD,t1=now+PAD;
   const box=el.parentElement,cssW=Math.max(260,box.clientWidth||320),cssH=cssW<720?340:520,dpr=Math.min(2,window.devicePixelRatio||1);
   el.width=Math.round(cssW*dpr);el.height=Math.round(cssH*dpr);el.style.width="100%";el.style.height=cssH+"px";
   const ctx=el.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -710,13 +710,13 @@ function drawSw(){
     const nx=xAt(now);ctx.strokeStyle="#5eead4";ctx.globalAlpha=0.35;ctx.beginPath();ctx.moveTo(nx,y0);ctx.lineTo(nx,y0+p.h);ctx.stroke();ctx.globalAlpha=1;
     return y0;
   }
-  function line(rows,key,color,y0,p){ctx.strokeStyle=color;ctx.lineWidth=1.2;ctx.beginPath();let on=false;samp(rows,1200).forEach(function(r){if(!isFinite(r[key])||!isFinite(r.t))return;const x=xAt(r.t),y=yAt(y0,p.h,p.ymin,p.ymax,p.log,r[key]);if(!on){ctx.moveTo(x,y);on=true}else ctx.lineTo(x,y)});ctx.stroke()}
-  function area(rows,key,color,y0,p,base){const pts=samp(rows,1200).filter(r=>isFinite(r[key])&&isFinite(r.t));if(!pts.length)return;ctx.beginPath();const yb=yAt(y0,p.h,p.ymin,p.ymax,p.log,base);ctx.moveTo(xAt(pts[0].t),yb);pts.forEach(function(r){ctx.lineTo(xAt(r.t),yAt(y0,p.h,p.ymin,p.ymax,p.log,r[key]))});ctx.lineTo(xAt(pts[pts.length-1].t),yb);ctx.closePath();ctx.fillStyle=color;ctx.globalAlpha=0.55;ctx.fill();ctx.globalAlpha=1}
+  function line(rows,key,color,y0,p){ctx.save();ctx.beginPath();ctx.rect(L,y0,pw,p.h);ctx.clip();ctx.strokeStyle=color;ctx.lineWidth=1.2;ctx.beginPath();let on=false;samp(rows,1200).forEach(function(r){if(!isFinite(r[key])||!isFinite(r.t)||r.t<t0||r.t>t1)return;const x=xAt(r.t),y=yAt(y0,p.h,p.ymin,p.ymax,p.log,r[key]);if(!on){ctx.moveTo(x,y);on=true}else ctx.lineTo(x,y)});ctx.stroke();ctx.restore()}
+  function area(rows,key,color,y0,p,base){const pts=samp(rows,1200).filter(r=>isFinite(r[key])&&isFinite(r.t)&&r.t>=t0&&r.t<=t1);if(!pts.length)return;ctx.save();ctx.beginPath();ctx.rect(L,y0,pw,p.h);ctx.clip();ctx.beginPath();const yb=yAt(y0,p.h,p.ymin,p.ymax,p.log,base);ctx.moveTo(xAt(pts[0].t),yb);pts.forEach(function(r){ctx.lineTo(xAt(r.t),yAt(y0,p.h,p.ymin,p.ymax,p.log,r[key]))});ctx.lineTo(xAt(pts[pts.length-1].t),yb);ctx.closePath();ctx.fillStyle=color;ctx.globalAlpha=0.55;ctx.fill();ctx.globalAlpha=1;ctx.restore()}
   const p0=panels[0],y0=frame(p0);area(hapiPack.mag,"bt","#d6d6d6",y0,p0,0);area(hapiPack.mag,"bz_gsm","#C4472E",y0,p0,0);line(hapiPack.mag,"by_gsm","#008ce6",y0,p0);line(hapiPack.enlil,"bt","#94a3b8",y0,p0);
   const p1=panels[1],y1=frame(p1);area(hapiPack.plasma,"speed","#ffe4a8",y1,p1,p1.ymin);line(hapiPack.plasma,"speed","#fec700",y1,p1);
   const p2=panels[2],y2=frame(p2);
   const barW=Math.max(2,(30*60*1000)/span*pw-1);
-  (hapiPack.hp||[]).forEach(function(r){if(!isFinite(r.Hp30))return;const x=xAt(r.t),y=yAt(y2,p2.h,p2.ymin,p2.ymax,0,r.Hp30);ctx.fillStyle=r.Hp30>=5?"#FFF033":r.Hp30>=4?"#FFBB44":"#88CC66";ctx.fillRect(x,y,barW,y2+p2.h-y)});
+  (hapiPack.hp||[]).forEach(function(r){if(!isFinite(r.Hp30)||r.t<t0||r.t>t1)return;const x=xAt(r.t),y=yAt(y2,p2.h,p2.ymin,p2.ymax,0,r.Hp30);ctx.fillStyle=r.Hp30>=5?"#FFF033":r.Hp30>=4?"#FFBB44":"#88CC66";ctx.fillRect(x,y,barW,y2+p2.h-y)});
   ctx.fillStyle="#8b97b3";ctx.font="9px sans-serif";ctx.textAlign="center";
   const startH=new Date(t0);startH.setUTCMinutes(0,0,0);
   if(startH.getUTCHours()%2) startH.setUTCHours(startH.getUTCHours()+1);

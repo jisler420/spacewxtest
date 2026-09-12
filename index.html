@@ -212,7 +212,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.12.03</div>
+  <div class="pagefoot">V00.12.04</div>
 </div>
 <script>
 (function(){
@@ -673,7 +673,7 @@ function imfPeak(t0,t1){
 }
 function drawSw(){
   const el=document.getElementById("swPlot"); if(!el)return;
-  const now=Date.now(),PAD=3600000,t0=now-36*3600000-PAD,t1=now+PAD;
+  const now=Date.now(),t0=now-36*3600000,t1=now+3600000;
   const box=el.parentElement,cssW=Math.max(260,box.clientWidth||320),cssH=cssW<720?340:520,dpr=Math.min(2,window.devicePixelRatio||1);
   el.width=Math.round(cssW*dpr);el.height=Math.round(cssH*dpr);el.style.width="100%";el.style.height=cssH+"px";
   const ctx=el.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);

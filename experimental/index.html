@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.20</div>
+  <div class="pagefoot">V00.14.21</div>
 </div>
 <script>
 (function(){
@@ -293,6 +293,16 @@ function kpGCell(k,scale){
 let hemiSeries=[];
 let hemiPolledAt=0;
 let kp1mBuf=[];
+const KP1M_KEY="spacewx-kp1m";
+function persistKp1m(){
+  try{ localStorage.setItem(KP1M_KEY, JSON.stringify((kp1mBuf||[]).map(function(r){return {time_tag:r.time_tag,estimated_kp:r.estimated_kp}}))); }catch(e){}
+}
+function restoreKp1m(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(KP1M_KEY)||"[]");
+    if(Array.isArray(raw)&&raw.length) drawKp1m(raw);
+  }catch(e){}
+}
 function utcHms(ms){
   const d=new Date(ms);
   if(!isFinite(ms)||!isFinite(d.getTime())) return "—";
@@ -776,6 +786,7 @@ function drawKp1m(row){
   if(el15&&isFinite(a15)){ el15.textContent=a15.toFixed(2); tone(el15,"kp",a15); }
   const el30=document.getElementById("vKp30");
   if(el30&&isFinite(a30)){ el30.textContent=a30.toFixed(2); tone(el30,"kp",a30); }
+  persistKp1m();
   updateAuroraView();
 }
 function parseGfzHp30(txt){
@@ -1186,11 +1197,13 @@ function applyWorkerData(data){
 
 tick();
 try{drawHemiPlot()}catch(e){}
+restoreKp1m();
+settled("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json").then(function(kp1m){ if(kp1m) drawKp1m(kp1m); });
 refreshHemi();
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001410", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001421", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

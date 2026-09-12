@@ -21,7 +21,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/hemi-archive.txt kiosk/data/hemi-archive.txt
+          git add data/hemi-archive.txt
           if git diff --cached --quiet; then
             echo "no archive change"
             exit 0

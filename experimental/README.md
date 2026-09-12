@@ -1,6 +1,6 @@
 # SpaceWx experimental
 
-Isolated from the stable test kiosk. Primary + one fallback per number. Data-age colors on timestamps. Does not poll full RTSW JSON.
+Isolated from the stable TEST page. Primary + one fallback per number. Data-age colors on timestamps. Does not poll full RTSW JSON.
 
 | Number | Primary | Fallback |
 |---|---|---|

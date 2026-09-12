@@ -8,8 +8,8 @@ from datetime import timezone
 
 URL = "https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt"
 ARCHIVE = pathlib.Path("data/hemi-archive.txt")
-PATHS = [ARCHIVE, pathlib.Path("kiosk/data/hemi-archive.txt")]
-LEGACY = [pathlib.Path("data/hemi.txt"), pathlib.Path("kiosk/data/hemi.txt")]
+PATHS = [ARCHIVE]
+LEGACY = [pathlib.Path("data/hemi.txt")]
 KEEP_H = 36
 
 

@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.25</div>
+  <div class="pagefoot">V00.14.26</div>
 </div>
 <script>
 (function(){
@@ -970,39 +970,36 @@ function viewOffsetDeg(p){
   return 6 + 8*Math.pow(t, 0.6);
 }
 function lonNorm(lon){ let x=Number(lon); if(x>180) x-=360; if(x<=-180) x+=360; return x; }
+function lonGap(a,b){ let d=Math.abs(a-b); if(d>180) d=360-d; return d; }
 function buildViewLines(coords){
-  const step=3, n=Math.round(360/step), THR=10;
+  const step=3, n=Math.round(360/step), THR=10, MAXGAP=4;
   const N=new Array(n), S=new Array(n);
   (coords||[]).forEach(function(p){
     if(!p||p.length<3||p[2]<THR||Math.abs(p[1])<22) return;
     const lon=lonNorm(p[0]), lat=p[1], v=p[2];
     const i=Math.max(0, Math.min(n-1, Math.floor((lon+180)/step)));
     if(lat>0){
-      if(!N[i]) N[i]={edge:lat,p:v};
+      if(!N[i]) N[i]={edge:lat,p:v,real:1};
       else { if(lat<N[i].edge) N[i].edge=lat; if(v>N[i].p) N[i].p=v; }
     }else{
-      if(!S[i]) S[i]={edge:lat,p:v};
+      if(!S[i]) S[i]={edge:lat,p:v,real:1};
       else { if(lat>S[i].edge) S[i].edge=lat; if(v>S[i].p) S[i].p=v; }
     }
   });
-  function complete(arr){
-    const have=[];
-    for(let i=0;i<n;i++) if(arr[i]) have.push(i);
-    if(!have.length) return;
+  function fillTinyGaps(arr){
     for(let i=0;i<n;i++){
       if(arr[i]) continue;
       let p=-1, nx=-1;
-      for(let d=1;d<n;d++){
-        if(p<0 && arr[(i-d+n)%n]) p=d;
-        if(nx<0 && arr[(i+d)%n]) nx=d;
+      for(let d=1;d<=MAXGAP;d++){
+        if(p<0 && arr[(i-d+n)%n]&&arr[(i-d+n)%n].real) p=d;
+        if(nx<0 && arr[(i+d)%n]&&arr[(i+d)%n].real) nx=d;
         if(p>0 && nx>0) break;
       }
-      if(p<0||nx<0) continue;
+      if(p<0||nx<0||p+nx>MAXGAP+1) continue;
       const a=arr[(i-p+n)%n], b=arr[(i+nx)%n], t=p/(p+nx);
-      arr[i]={edge:a.edge+(b.edge-a.edge)*t, p:a.p+(b.p-a.p)*t};
+      arr[i]={edge:a.edge+(b.edge-a.edge)*t, p:a.p+(b.p-a.p)*t, real:0};
     }
   }
-  complete(N); complete(S);
   function smoothField(arr, key, half){
     const out=new Array(n);
     for(let i=0;i<n;i++){
@@ -1010,7 +1007,8 @@ function buildViewLines(coords){
       let s=0,c=0;
       for(let k=-half;k<=half;k++){
         const rec=arr[(i+k+n)%n];
-        if(rec&&isFinite(rec[key])){s+=rec[key];c++;}
+        if(!rec||!isFinite(rec[key])) continue;
+        s+=rec[key];c++;
       }
       out[i]=Object.assign({}, arr[i]);
       if(c) out[i][key]=s/c;
@@ -1018,34 +1016,18 @@ function buildViewLines(coords){
     return out;
   }
   function pack(arr, south){
-    complete(arr);
-    arr=smoothField(arr, "edge", 4);
-    arr=smoothField(arr, "p", 4);
-    const ml=[];
+    fillTinyGaps(arr);
+    arr=smoothField(arr, "edge", 2);
+    arr=smoothField(arr, "p", 2);
+    const peak=[], view=[];
     for(let i=0;i<n;i++){
       if(!arr[i]) continue;
       const lon=-180+i*step;
       const m=Math.abs(magLat(arr[i].edge, lon));
       const vm=Math.max(34, Math.min(72, m-viewOffsetDeg(arr[i].p)));
-      ml.push({lon:lon, m:vm, edgeM:m, p:arr[i].p});
-    }
-    if(ml.length<8) return {peak:[], view:[]};
-    const byLon=new Array(n);
-    ml.forEach(function(r,i){ byLon[Math.max(0,Math.min(n-1, Math.round((r.lon+180)/step))) ]=r; });
-    const smM=smoothField(byLon.map(function(r){return r?{m:r.m,edgeM:r.edgeM,p:r.p}:null;}), "m", 5);
-    const smE=smoothField(smM, "edgeM", 5);
-    const peak=[], view=[];
-    for(let i=0;i<n;i++){
-      const rec=smE[i]||byLon[i];
-      if(!rec) continue;
-      const lon=-180+i*step;
       const sign=south?-1:1;
-      peak.push({lon:lon, lat:geoLatForMlat(sign*rec.edgeM, lon)});
-      view.push({lon:lon, lat:geoLatForMlat(sign*rec.m, lon)});
-    }
-    if(view.length){
-      peak.push({lon:180, lat:peak[0].lat});
-      view.push({lon:180, lat:view[0].lat});
+      peak.push({lon:lon, lat:geoLatForMlat(sign*m, lon)});
+      view.push({lon:lon, lat:geoLatForMlat(sign*vm, lon)});
     }
     return {peak:peak, view:view};
   }
@@ -1059,12 +1041,15 @@ function interpLine(arr, lon){
   const n=arr.length;
   let i=0;
   while(i<n && arr[i].lon<lon) i++;
-  const b=arr[i%n], a=arr[(i-1+n)%n];
+  const b=arr[i<n?i:0], a=arr[(i-1+n)%n];
   if(!a||!b) return NaN;
+  if(lonGap(a.lon, lon)>12 || lonGap(b.lon, lon)>12) return NaN;
   let lonA=a.lon, lonB=b.lon, x=lon;
   if(lonB<lonA) lonB+=360;
   if(x<lonA) x+=360;
-  const t=(x-lonA)/Math.max(1e-6, lonB-lonA);
+  const span=lonB-lonA;
+  if(span>24) return NaN;
+  const t=(x-lonA)/Math.max(1e-6, span);
   return a.lat+(b.lat-a.lat)*t;
 }
 function viewPctAt(lat, lon){
@@ -1101,46 +1086,41 @@ function updateAuroraView(){
   }
 }
 function drawViewLine(ctx,w,h){
-  function strokeBand(arr){
-    if(!arr||arr.length<8) return false;
+  function strokeRun(run){
+    if(!run||run.length<3) return;
     ctx.beginPath();
-    let started=false;
-    for(let lon=-180; lon<=180; lon+=1){
-      const lat=interpLine(arr, lon);
-      if(!isFinite(lat)) continue;
-      const p=xy(lon, lat, w, h);
-      if(!started){ ctx.moveTo(p[0],p[1]); started=true; }
-      else ctx.lineTo(p[0],p[1]);
-    }
+    run.forEach(function(pt,i){
+      const p=xy(pt.lon, pt.lat, w, h);
+      if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
+    });
     ctx.stroke();
-    return started;
   }
-  const lines=[viewLineN, viewLineS];
-  const has=lines.some(function(a){return a&&a.length>8});
+  function eachRun(arr, fn){
+    if(!arr||!arr.length) return;
+    let run=[];
+    function flush(){ if(run.length>=3) fn(run); run=[]; }
+    arr.forEach(function(pt){
+      if(!pt||!isFinite(pt.lat)){ flush(); return; }
+      if(run.length && lonGap(pt.lon, run[run.length-1].lon)>8) flush();
+      run.push(pt);
+    });
+    flush();
+  }
   ctx.save();
   ctx.lineJoin="round";
   ctx.lineCap="round";
-  function paint(arr){
-    ctx.setLineDash([]);
-    ctx.strokeStyle="rgba(255,255,255,0.22)";
-    ctx.lineWidth=3.4;
-    strokeBand(arr);
-    ctx.setLineDash([7,5]);
-    ctx.strokeStyle="rgba(248,250,252,0.92)";
-    ctx.lineWidth=1.35;
-    strokeBand(arr);
-  }
-  if(has){
-    lines.forEach(paint);
-  }else{
-    const kp=currentKpView(), V=viewMlat(kp);
-    const fakeN=[], fakeS=[];
-    for(let lng=-180;lng<=180;lng+=3){
-      fakeN.push({lon:lng, lat:geoLatForMlat(V, lng)});
-      fakeS.push({lon:lng, lat:geoLatForMlat(-V, lng)});
-    }
-    paint(fakeN); paint(fakeS);
-  }
+  [viewLineN, viewLineS].forEach(function(arr){
+    eachRun(arr, function(run){
+      ctx.setLineDash([]);
+      ctx.strokeStyle="rgba(255,255,255,0.22)";
+      ctx.lineWidth=3.4;
+      strokeRun(run);
+      ctx.setLineDash([7,5]);
+      ctx.strokeStyle="rgba(248,250,252,0.92)";
+      ctx.lineWidth=1.35;
+      strokeRun(run);
+    });
+  });
   ctx.restore();
 }
 function drawEarth(){
@@ -1309,29 +1289,38 @@ function loadScript(src){
   });
 }
 function viewPaths(){
-  function smooth(arr){
-    if(!arr||arr.length<8) return null;
+  function smoothOpen(arr){
+    if(!arr||arr.length<4) return arr;
     const n=arr.length, sm=[];
     for(let i=0;i<n;i++){
       let s=0,c=0;
-      for(let k=-4;k<=4;k++){
-        const rec=arr[(i+k+n)%n];
-        if(rec&&isFinite(rec.lat)){ s+=rec.lat; c++; }
+      for(let k=-2;k<=2;k++){
+        const j=i+k;
+        if(j<0||j>=n) continue;
+        if(arr[j]&&isFinite(arr[j].lat)){ s+=arr[j].lat; c++; }
       }
-      sm.push({lat:s/c, lon:arr[i].lon});
+      sm.push({lat:c?s/c:arr[i].lat, lon:arr[i].lon});
     }
     return sm;
   }
-  function toCoords(arr){
-    const src=smooth(arr);
-    if(!src) return null;
-    return src.map(function(p){ return [p.lat, p.lon]; });
+  function segs(arr){
+    const out=[], run=[];
+    function flush(){
+      if(run.length>=4){
+        const src=smoothOpen(run);
+        out.push({coords: src.map(function(p){ return [p.lat, p.lon]; })});
+      }
+      run.length=0;
+    }
+    (arr||[]).forEach(function(pt){
+      if(!pt||!isFinite(pt.lat)){ flush(); return; }
+      if(run.length && lonGap(pt.lon, run[run.length-1].lon)>8) flush();
+      run.push(pt);
+    });
+    flush();
+    return out;
   }
-  const out=[];
-  const n=toCoords(viewLineN), s=toCoords(viewLineS);
-  if(n) out.push({coords:n});
-  if(s) out.push({coords:s});
-  return out;
+  return segs(viewLineN).concat(segs(viewLineS));
 }
 const EARTH_NIGHT="lib/earth-night.jpg";
 let nightImg=null, nightWait=null;

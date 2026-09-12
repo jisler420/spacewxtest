@@ -212,7 +212,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.12.01</div>
+  <div class="pagefoot">V00.12.02</div>
 </div>
 <script>
 (function(){
@@ -357,6 +357,20 @@ function mergeHemi(rows){
   const by=Object.create(null);
   (hemiSeries||[]).concat(rows||[]).forEach(function(r){
     if(r&&isFinite(r.obs)) by[r.obs]=r;
+  });
+  const days={};
+  Object.keys(by).forEach(function(k){
+    const d=new Date(+k);
+    days[Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())]=1;
+  });
+  Object.keys(days).forEach(function(day0){
+    const t0=+day0, t45=t0+23*3600000+45*60000, t50=t0+23*3600000+50*60000, t55=t0+23*3600000+55*60000;
+    function copySlot(from, obs){
+      const src=by[from]; if(!src) return;
+      by[obs]={obs:obs, fcst:(src.fcst||src.obs)+(obs-src.obs), n:src.n, s:src.s};
+    }
+    if(!by[t50] && by[t45]) copySlot(t45, t50);
+    if(!by[t55] && (by[t50]||by[t45])) copySlot(by[t50]?t50:t45, t55);
   });
   const cut=Date.now()-HEMI_KEEP;
   hemiSeries=Object.keys(by).map(Number).sort(function(a,b){return a-b}).map(function(k){return by[k]}).filter(function(r){return r.obs>=cut});

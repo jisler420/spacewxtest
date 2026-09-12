@@ -34,10 +34,39 @@ def load_all():
     return "\n".join(chunks)
 
 
+def fill_utc_day_end(by):
+    """NOAA's day file stops at 23:50. Copy 23:45→23:50 and 23:50→23:55 if missing."""
+    days = sorted({k[:10] for k in by})
+    for day in days:
+        k45, k50, k55 = f"{day}_23:45", f"{day}_23:50", f"{day}_23:55"
+        def clone(src_key, dst_key):
+            ln = by.get(src_key)
+            if not ln:
+                return
+            parts = ln.split()
+            if len(parts) < 4:
+                return
+            obs, fcst, n, s = parts[0], parts[1], parts[2], parts[3]
+            try:
+                t0 = datetime.datetime.strptime(obs, "%Y-%m-%d_%H:%M")
+                t1 = datetime.datetime.strptime(fcst, "%Y-%m-%d_%H:%M")
+                dst = datetime.datetime.strptime(dst_key, "%Y-%m-%d_%H:%M")
+            except ValueError:
+                return
+            dt = dst - t0
+            nf = (t1 + dt).strftime("%Y-%m-%d_%H:%M")
+            by[dst_key] = f"{dst_key}    {nf}      {n}      {s}"
+        if k50 not in by and k45 in by:
+            clone(k45, k50)
+        if k55 not in by and (k50 in by or k45 in by):
+            clone(k50 if k50 in by else k45, k55)
+
+
 def merge(old, new):
     by = {}
     for ln in rows(old) + rows(new):
         by[ln[:16]] = ln
+    fill_utc_day_end(by)
     now = datetime.datetime.now(timezone.utc)
     cut = now - datetime.timedelta(hours=KEEP_H)
     kept, dropped = [], 0

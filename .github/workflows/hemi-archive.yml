@@ -1,0 +1,31 @@
+name: Hemi archive
+on:
+  schedule:
+    - cron: "50 * * * *"
+    - cron: "55 23 * * *"
+    - cron: "0,5,10 0 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: hemi-archive
+  cancel-in-progress: false
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Merge NOAA hemi-power (36h)
+        run: python3 scripts/merge_hemi.py
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/hemi-archive.txt kiosk/data/hemi-archive.txt
+          if git diff --cached --quiet; then
+            echo "no archive change"
+            exit 0
+          fi
+          git commit -m "hemi-archive snapshot (36h rolling)"
+          git pull --rebase --autostash origin main || git pull --rebase origin main || true
+          git push

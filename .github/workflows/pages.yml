@@ -22,12 +22,13 @@ jobs:
         run: python3 scripts/merge_hemi.py
       - name: Stage site
         run: |
-          mkdir -p _site/data
+          mkdir -p _site/data _site/lib
           cp index.html _site/index.html
           cp index.html _site/live.html
           cp spacewx-worker.js _site/spacewx-worker.js
           cp settings.html _site/settings.html
           cp -a data/. _site/data/
+          cp -a lib/. _site/lib/ 2>/dev/null || true
           cp -a experimental/. _site/experimental/ 2>/dev/null || true
           mkdir -p _site/experimental/data
           cp -a data/. _site/experimental/data/ 2>/dev/null || true

@@ -214,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.08</div>
+  <div class="pagefoot">V00.14.09</div>
 </div>
 <script>
 (function(){
@@ -1199,7 +1199,7 @@ function viewPaths(){
     const n=arr.length, sm=[];
     for(let i=0;i<n;i++){
       let s=0,c=0;
-      for(let k=-3;k<=3;k++){
+      for(let k=-4;k<=4;k++){
         const rec=arr[(i+k+n)%n];
         if(rec&&isFinite(rec.lat)){ s+=rec.lat; c++; }
       }
@@ -1207,66 +1207,45 @@ function viewPaths(){
     }
     return sm;
   }
-  function densify(arr){
+  function toCoords(arr){
     const src=smooth(arr);
     if(!src) return null;
-    const out=[];
-    for(let i=0;i<src.length-1;i++){
-      const a=src[i], b=src[i+1];
-      out.push([a.lat, a.lon]);
-      out.push([(a.lat*2+b.lat)/3, (a.lon*2+b.lon)/3]);
-      out.push([(a.lat+b.lat*2)/3, (a.lon+b.lon*2)/3]);
-    }
-    const last=src[src.length-1];
-    out.push([last.lat, last.lon]);
-    return out;
+    return src.map(function(p){ return [p.lat, p.lon]; });
   }
   const out=[];
-  const n=densify(viewLineN), s=densify(viewLineS);
+  const n=toCoords(viewLineN), s=toCoords(viewLineS);
   if(n) out.push({coords:n});
   if(s) out.push({coords:s});
   return out;
 }
-const NIGHT_MAPS=[
-  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_lights_2048.png",
-  "https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg"
-];
-function loadImg(src){
-  return new Promise(function(res, rej){
+const EARTH_NIGHT="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg";
+function bakeGlobeTex(){
+  return new Promise(function(res){
     const img=new Image();
     img.crossOrigin="anonymous";
-    img.onload=function(){ res(img); };
-    img.onerror=function(){ rej(); };
-    img.src=src;
+    img.onload=function(){
+      const c=document.createElement("canvas");
+      c.width=2048; c.height=1024;
+      const ctx=c.getContext("2d");
+      ctx.imageSmoothingEnabled=true;
+      ctx.imageSmoothingQuality="high";
+      ctx.drawImage(img,0,0,c.width,c.height);
+      if(auroraData){
+        const off=document.createElement("canvas");
+        off.width=auroraData.width; off.height=auroraData.height;
+        off.getContext("2d").putImageData(auroraData,0,0);
+        ctx.save();
+        ctx.filter="blur(6px)";
+        ctx.globalCompositeOperation="screen";
+        ctx.globalAlpha=0.88;
+        ctx.drawImage(off,0,0,c.width,c.height);
+        ctx.restore();
+      }
+      res(c.toDataURL("image/jpeg", 0.9));
+    };
+    img.onerror=function(){ res(EARTH_NIGHT); };
+    img.src=EARTH_NIGHT;
   });
-}
-function bakeGlobeTex(){
-  return (async function(){
-    let img=null;
-    for(let i=0;i<NIGHT_MAPS.length;i++){
-      try{ img=await loadImg(NIGHT_MAPS[i]); break; }catch(e){}
-    }
-    const c=document.createElement("canvas");
-    c.width=4096; c.height=2048;
-    const ctx=c.getContext("2d");
-    ctx.imageSmoothingEnabled=true;
-    ctx.imageSmoothingQuality="high";
-    ctx.fillStyle="#070b12";
-    ctx.fillRect(0,0,c.width,c.height);
-    if(img) ctx.drawImage(img,0,0,c.width,c.height);
-    if(auroraData){
-      const off=document.createElement("canvas");
-      off.width=auroraData.width; off.height=auroraData.height;
-      off.getContext("2d").putImageData(auroraData,0,0);
-      ctx.save();
-      ctx.filter="blur(4px)";
-      ctx.globalCompositeOperation="screen";
-      ctx.globalAlpha=0.88;
-      ctx.drawImage(off,0,0,c.width,c.height);
-      ctx.restore();
-    }
-    return c.toDataURL("image/jpeg", 0.92);
-  })();
 }
 function globePin(){
   return [{lat:cfg.lat, lng:cfg.lon, pct:Math.round(viewPctAt(cfg.lat, cfg.lon))}];
@@ -1290,10 +1269,9 @@ async function startGlobe(){
     .backgroundColor("#070b12")
     .showGlobe(true)
     .showAtmosphere(true)
-    .atmosphereColor("#1e3a5f")
-    .atmosphereAltitude(0.16)
+    .atmosphereColor("#243656")
+    .atmosphereAltitude(0.14)
     .globeImageUrl(tex)
-    .bumpImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png")
     .htmlElementsData(globePin())
     .htmlLat("lat")
     .htmlLng("lng")
@@ -1303,17 +1281,16 @@ async function startGlobe(){
     .pathPoints("coords")
     .pathPointLat(function(p){return Array.isArray(p)?p[0]:p.lat})
     .pathPointLng(function(p){return Array.isArray(p)?p[1]:(p.lng||p.lon)})
-    .pathColor(function(){return "rgba(248,250,252,0.9)"})
-    .pathStroke(0.35)
-    .pathPointAlt(0.01)
-    .pathResolution(4)
-    .pathDashLength(0.028)
-    .pathDashGap(0.018)
+    .pathColor(function(){return "rgba(241,245,249,0.88)"})
+    .pathStroke(0.42)
+    .pathPointAlt(0.005)
+    .pathResolution(6)
+    .pathDashLength(0.07)
+    .pathDashGap(0.035)
     .pathDashAnimateTime(0)
     (el);
   world.width(el.clientWidth||el.offsetWidth);
   world.height(el.clientHeight||el.offsetHeight);
-  try{ world.renderer().setPixelRatio(Math.min(2, window.devicePixelRatio||1)); }catch(e){}
   world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:2.05}, 0);
   const ctl=world.controls();
   ctl.autoRotate=true;

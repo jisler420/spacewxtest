@@ -40,11 +40,7 @@ header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-conte
 .kpi span{color:var(--muted);font-size:11px;text-transform:uppercase}
 .short{display:none}
 .maprow{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);gap:12px;align-items:stretch;margin-bottom:12px}
-.mapbox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#000;cursor:zoom-in}
-.maplb{display:none;position:fixed;inset:0;z-index:80;background:rgba(5,8,14,.86);padding:3vh 3vw;align-items:center;justify-content:center}
-.maplb.on{display:flex}
-.maplb-inner{width:min(96vw,1600px);max-height:90vh}
-.maplb canvas{width:100%;height:auto;aspect-ratio:2/1;display:block;background:#070b12;border:1px solid var(--line);border-radius:12px}
+.mapbox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#000}
 .maprow .card{height:100%;min-height:220px;min-width:0}
 #earth{position:absolute;inset:0;width:100%;height:100%;display:block}
 td.kp-now{outline:1px solid var(--acc);background:#102018}
@@ -184,8 +180,8 @@ th:first-child,td:first-child{text-align:left}
   </div>
   <div class="maprow">
     <div>
-      <div class="mapbox" id="mapbox" title="Tap to enlarge"><canvas id="earth"></canvas></div>
-      <div class="muted" id="mapStatus">equirectangular Earth · poles visible · tap map to enlarge</div>
+      <div class="mapbox"><canvas id="earth"></canvas></div>
+      <div class="muted" id="mapStatus">equirectangular Earth · poles visible</div>
     </div>
     <div class="card">
       <h2>Kp forecast · 3-day</h2>
@@ -213,13 +209,10 @@ th:first-child,td:first-child{text-align:left}
     <div class="card"><h2>TGO Europe H</h2><a class="imglink" id="tgoA" target="_blank" rel="noopener noreferrer"><img id="tgo" alt="TGO" referrerpolicy="no-referrer"></a><div class="muted" id="tgoNote"></div></div>
   </div>
 </main>
-<div class="maplb" id="mapLb" title="Click to close">
-  <div class="maplb-inner"><canvas id="earthZoom"></canvas></div>
-</div>
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.01</div>
+  <div class="pagefoot">V00.13.00</div>
 </div>
 <script>
 (function(){
@@ -924,7 +917,7 @@ function updateAuroraView(){
   const pct=viewPctAt(cfg.lat, cfg.lon);
   vAurora.textContent=Math.round(pct)+"%";
   tone(vAurora,"pct",pct);
-  try{drawEarthAll()}catch(e){}
+  try{drawEarth()}catch(e){}
 }
 function drawViewLine(ctx,w,h){
   const kp=currentKpView();
@@ -944,9 +937,9 @@ function drawViewLine(ctx,w,h){
   });
   ctx.restore();
 }
-function drawEarth(target){
-  const el=target||document.getElementById("earth"),box=el&&el.parentElement;if(!el||!box)return;
-  const w=Math.max(320,box.clientWidth||el.clientWidth||320),h=Math.max(160,box.clientHeight||Math.round(w/2)),dpr=Math.min(2,window.devicePixelRatio||1);
+function drawEarth(){
+  const el=document.getElementById("earth"),box=el&&el.parentElement;if(!el||!box)return;
+  const w=Math.max(320,box.clientWidth),h=Math.max(160,box.clientHeight),dpr=Math.min(2,window.devicePixelRatio||1);
   el.width=Math.round(w*dpr);el.height=Math.round(h*dpr);el.style.width=w+"px";el.style.height=h+"px";
   const ctx=el.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle="#070b12";ctx.fillRect(0,0,w,h);
   if(baseImg&&baseImg.complete)ctx.drawImage(baseImg,0,0,w,h);
@@ -971,22 +964,7 @@ async function loadAurora(){
   mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · red = view line"):"equirectangular Earth · poles + OVATION · red = view line";
   updateAuroraView();
 }
-(function(){const img=new Image();img.crossOrigin="anonymous";img.onload=function(){baseImg=img;drawEarthAll()};img.src=BASE})();
-function drawEarthAll(){
-  try{drawEarth()}catch(e){}
-  const lb=document.getElementById("mapLb");
-  if(lb&&lb.classList.contains("on")) try{drawEarth(document.getElementById("earthZoom"))}catch(e){}
-}
-(function(){
-  const box=document.getElementById("mapbox");
-  const lb=document.getElementById("mapLb");
-  if(!box||!lb) return;
-  function openLb(){ lb.classList.add("on"); drawEarthAll(); }
-  function closeLb(){ lb.classList.remove("on"); }
-  box.addEventListener("click", openLb);
-  lb.addEventListener("click", closeLb);
-  document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeLb(); });
-})();
+(function(){const img=new Image();img.crossOrigin="anonymous";img.onload=function(){baseImg=img;drawEarth()};img.src=BASE})();
 
 const ENLIL_DIR="https://services.swpc.noaa.gov/images/animations/enlil/";
 let frames=[],fi=0,timer=null;
@@ -1003,7 +981,7 @@ function tick(){
     const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
   }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
-  if(min!==tick._termMin){tick._termMin=min; try{drawEarthAll()}catch(e){}}
+  if(min!==tick._termMin){tick._termMin=min; try{drawEarth()}catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -1054,7 +1032,7 @@ function applyWorkerData(data){
 tick();
 try{drawHemiPlot()}catch(e){}
 refreshHemi();
-drawEarthAll();loadImgs();loadEnlil();
+drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
   const wurl=new URL("spacewx-worker.js?v=001300", document.baseURI||location.href);
@@ -1083,7 +1061,7 @@ document.addEventListener("visibilitychange",function(){
   if(wxWorker){try{wxWorker.postMessage({type:"config",pollSec:cfg.pollSec||60,hidden:document.hidden})}catch(e){}}
   if(!document.hidden) refreshKpis("all");
 });
-window.addEventListener("resize",function(){drawEarthAll();drawAll()});
+window.addEventListener("resize",function(){drawEarth();drawAll()});
 (function(){
   const HALF=30*60*1000;
   function wait(){return Math.max(1000, HALF-(Date.now()%HALF))}

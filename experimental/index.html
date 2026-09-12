@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.26</div>
+  <div class="pagefoot">V00.14.27</div>
 </div>
 <script>
 (function(){
@@ -946,7 +946,7 @@ function lerpMlat(table, kp){
 function extraViewDeg(kp){
   if(!isFinite(kp)) kp=2;
   kp=Math.max(0,Math.min(9,kp));
-  return 6 + 8*Math.pow(kp/9, 0.6);
+  return viewOffsetDeg((kp/9)*70);
 }
 function ovalMlat(kp){ return lerpMlat(OVAL_MLAT, kp); }
 function viewMlat(kp){ return ovalMlat(kp) - extraViewDeg(kp); }
@@ -967,7 +967,10 @@ function geoLatForMlat(want, lon){
 }
 function viewOffsetDeg(p){
   const t=Math.max(0, Math.min(1, (Number(p)||0)/70));
-  return 6 + 8*Math.pow(t, 0.6);
+  const h=220+180*Math.pow(t,0.7);
+  const RE=6371, elev=10*Math.PI/180;
+  const arg=Math.min(1, Math.max(-1, (RE/(RE+h))*Math.cos(elev)));
+  return (Math.acos(arg)-elev)*180/Math.PI;
 }
 function lonNorm(lon){ let x=Number(lon); if(x>180) x-=360; if(x<=-180) x+=360; return x; }
 function lonGap(a,b){ let d=Math.abs(a-b); if(d>180) d=360-d; return d; }
@@ -1161,7 +1164,7 @@ function drawEarth(){
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();
 }
 function mapCaption(obs){
-  const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = view line"):"";
+  const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = horizon view line"):"";
   if(mapMode==="globe") return ov||"3D globe · drag to spin · pinch/scroll zoom";
   return ov||"equirectangular Earth · poles + OVATION";
 }

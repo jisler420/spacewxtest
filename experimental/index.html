@@ -41,7 +41,7 @@ header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-conte
 .short{display:none}
 .maprow{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);gap:12px;align-items:stretch;margin-bottom:12px}
 .mapbox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#000;display:none}
-.globebox{position:relative;width:min(320px,100%);height:320px;min-height:280px;max-height:340px;aspect-ratio:1;margin:0 auto;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#070b12;touch-action:none}
+.globebox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#070b12;touch-action:none}
 .maprow .card{height:100%;min-height:220px;min-width:0}
 #earth{position:absolute;inset:0;width:100%;height:100%;display:block}
 td.kp-now{outline:1px solid var(--acc);background:#102018}
@@ -116,7 +116,7 @@ th:first-child,td:first-child{text-align:left}
   .kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}
   .kpis-3{grid-template-columns:1fr}
   .player{flex-wrap:wrap}
-  .mapbox{min-height:180px}
+  .mapbox,.globebox{min-height:180px}
   #swPlot{height:300px}
   .hemiwrap{min-height:200px}
   header{row-gap:4px}
@@ -214,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.03</div>
+  <div class="pagefoot">V00.14.04</div>
 </div>
 <script>
 (function(){
@@ -1278,9 +1278,9 @@ async function startGlobe(){
     .pathPointAlt(0.008)
     .pathResolution(3)
     (el);
-  world.width(el.clientWidth||320);
-  world.height(el.clientHeight||320);
-  world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:1.7}, 0);
+  world.width(el.clientWidth||el.offsetWidth);
+  world.height(el.clientHeight||el.offsetHeight);
+  world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:2.05}, 0);
   const ctl=world.controls();
   ctl.autoRotate=true;
   ctl.autoRotateSpeed=0.18;
@@ -1297,7 +1297,7 @@ async function startGlobe(){
     refresh();
   }
   function resize(){
-    world.width(el.clientWidth||320);
+    world.width(el.clientWidth||640);
     world.height(el.clientHeight||320);
   }
   globeCtl={refresh:refresh, paint:paint, resize:resize, world:world};

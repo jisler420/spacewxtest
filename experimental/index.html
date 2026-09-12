@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.24</div>
+  <div class="pagefoot">V00.14.25</div>
 </div>
 <script>
 (function(){
@@ -931,8 +931,8 @@ const OVAL_MLAT=[67.5,66.1,64.4,62.4,60.4,58.1,55.7,53.1,50.1,46.5];
 let viewLineN=[], viewLineS=[], peakLineN=[], peakLineS=[];
 function currentKpView(){
   function num(id){const el=document.getElementById(id); if(!el) return NaN; return parseFloat(String(el.textContent||"").replace(/[^\d.+-]/g,""));}
-  const hp=num("vHp30"), k5=num("vKp5"), k15=num("vKp15"), k3=num("vKp");
-  const cands=[hp,k5,k15,k3].filter(isFinite);
+  const k5=num("vKp5"), k15=num("vKp15"), k3=num("vKp");
+  const cands=[k5,k15,k3].filter(isFinite);
   if(!cands.length) return 2;
   return Math.max.apply(null, cands);
 }
@@ -946,7 +946,7 @@ function lerpMlat(table, kp){
 function extraViewDeg(kp){
   if(!isFinite(kp)) kp=2;
   kp=Math.max(0,Math.min(9,kp));
-  return 4 + kp * (10/9);
+  return 6 + 8*Math.pow(kp/9, 0.6);
 }
 function ovalMlat(kp){ return lerpMlat(OVAL_MLAT, kp); }
 function viewMlat(kp){ return ovalMlat(kp) - extraViewDeg(kp); }
@@ -966,53 +966,86 @@ function geoLatForMlat(want, lon){
   return (lo+hi)/2;
 }
 function viewOffsetDeg(p){
-  const t=Math.max(0, Math.min(1, (Number(p)||0)/80));
-  return 11 + 5*t;
+  const t=Math.max(0, Math.min(1, (Number(p)||0)/70));
+  return 6 + 8*Math.pow(t, 0.6);
 }
 function lonNorm(lon){ let x=Number(lon); if(x>180) x-=360; if(x<=-180) x+=360; return x; }
 function buildViewLines(coords){
-  const step=2, n=Math.round(360/step);
+  const step=3, n=Math.round(360/step), THR=10;
   const N=new Array(n), S=new Array(n);
   (coords||[]).forEach(function(p){
-    if(!p||p.length<3||p[2]<8||Math.abs(p[1])<22) return;
+    if(!p||p.length<3||p[2]<THR||Math.abs(p[1])<22) return;
     const lon=lonNorm(p[0]), lat=p[1], v=p[2];
     const i=Math.max(0, Math.min(n-1, Math.floor((lon+180)/step)));
     if(lat>0){
-      if(!N[i] || v>N[i].p || (v===N[i].p && lat<N[i].lat)) N[i]={lat:lat,p:v};
+      if(!N[i]) N[i]={edge:lat,p:v};
+      else { if(lat<N[i].edge) N[i].edge=lat; if(v>N[i].p) N[i].p=v; }
     }else{
-      if(!S[i] || v>S[i].p || (v===S[i].p && lat>S[i].lat)) S[i]={lat:lat,p:v};
+      if(!S[i]) S[i]={edge:lat,p:v};
+      else { if(lat>S[i].edge) S[i].edge=lat; if(v>S[i].p) S[i].p=v; }
     }
   });
   function complete(arr){
+    const have=[];
+    for(let i=0;i<n;i++) if(arr[i]) have.push(i);
+    if(!have.length) return;
     for(let i=0;i<n;i++){
       if(arr[i]) continue;
-      let src=null;
+      let p=-1, nx=-1;
       for(let d=1;d<n;d++){
-        if(arr[(i-d+n)%n]){src=arr[(i-d+n)%n];break;}
-        if(arr[(i+d)%n]){src=arr[(i+d)%n];break;}
+        if(p<0 && arr[(i-d+n)%n]) p=d;
+        if(nx<0 && arr[(i+d)%n]) nx=d;
+        if(p>0 && nx>0) break;
       }
-      if(src) arr[i]={lat:src.lat,p:src.p};
+      if(p<0||nx<0) continue;
+      const a=arr[(i-p+n)%n], b=arr[(i+nx)%n], t=p/(p+nx);
+      arr[i]={edge:a.edge+(b.edge-a.edge)*t, p:a.p+(b.p-a.p)*t};
     }
   }
   complete(N); complete(S);
-  function pack(arr, south){
-    const sm=[];
+  function smoothField(arr, key, half){
+    const out=new Array(n);
     for(let i=0;i<n;i++){
       if(!arr[i]) continue;
       let s=0,c=0;
-      for(let k=-3;k<=3;k++){
+      for(let k=-half;k<=half;k++){
         const rec=arr[(i+k+n)%n];
-        if(rec){s+=rec.lat;c++;}
+        if(rec&&isFinite(rec[key])){s+=rec[key];c++;}
       }
-      const lat=s/c, p=arr[i].p, lon=-180+i*step;
-      const off=viewOffsetDeg(p);
-      sm.push({lon:lon, peak:lat, view:south?Math.min(-18,lat+off):Math.max(18,lat-off)});
+      out[i]=Object.assign({}, arr[i]);
+      if(c) out[i][key]=s/c;
     }
-    const peak=sm.map(function(r){return {lon:r.lon,lat:r.peak};});
-    const view=sm.map(function(r){return {lon:r.lon,lat:r.view};});
+    return out;
+  }
+  function pack(arr, south){
+    complete(arr);
+    arr=smoothField(arr, "edge", 4);
+    arr=smoothField(arr, "p", 4);
+    const ml=[];
+    for(let i=0;i<n;i++){
+      if(!arr[i]) continue;
+      const lon=-180+i*step;
+      const m=Math.abs(magLat(arr[i].edge, lon));
+      const vm=Math.max(34, Math.min(72, m-viewOffsetDeg(arr[i].p)));
+      ml.push({lon:lon, m:vm, edgeM:m, p:arr[i].p});
+    }
+    if(ml.length<8) return {peak:[], view:[]};
+    const byLon=new Array(n);
+    ml.forEach(function(r,i){ byLon[Math.max(0,Math.min(n-1, Math.round((r.lon+180)/step))) ]=r; });
+    const smM=smoothField(byLon.map(function(r){return r?{m:r.m,edgeM:r.edgeM,p:r.p}:null;}), "m", 5);
+    const smE=smoothField(smM, "edgeM", 5);
+    const peak=[], view=[];
+    for(let i=0;i<n;i++){
+      const rec=smE[i]||byLon[i];
+      if(!rec) continue;
+      const lon=-180+i*step;
+      const sign=south?-1:1;
+      peak.push({lon:lon, lat:geoLatForMlat(sign*rec.edgeM, lon)});
+      view.push({lon:lon, lat:geoLatForMlat(sign*rec.m, lon)});
+    }
     if(view.length){
-      peak.push({lon:180,lat:peak[0].lat});
-      view.push({lon:180,lat:view[0].lat});
+      peak.push({lon:180, lat:peak[0].lat});
+      view.push({lon:180, lat:view[0].lat});
     }
     return {peak:peak, view:view};
   }
@@ -1021,14 +1054,18 @@ function buildViewLines(coords){
   peakLineS=ps.peak; viewLineS=ps.view;
 }
 function interpLine(arr, lon){
-  if(!arr||!arr.length) return NaN;
+  if(!arr||arr.length<2) return NaN;
   lon=lonNorm(lon);
-  let best=arr[0], bestD=999;
-  for(let i=0;i<arr.length;i++){
-    let d=Math.abs(arr[i].lon-lon); if(d>180) d=360-d;
-    if(d<bestD){bestD=d; best=arr[i]}
-  }
-  return best?best.lat:NaN;
+  const n=arr.length;
+  let i=0;
+  while(i<n && arr[i].lon<lon) i++;
+  const b=arr[i%n], a=arr[(i-1+n)%n];
+  if(!a||!b) return NaN;
+  let lonA=a.lon, lonB=b.lon, x=lon;
+  if(lonB<lonA) lonB+=360;
+  if(x<lonA) x+=360;
+  const t=(x-lonA)/Math.max(1e-6, lonB-lonA);
+  return a.lat+(b.lat-a.lat)*t;
 }
 function viewPctAt(lat, lon){
   const north=lat>=0;
@@ -1064,35 +1101,45 @@ function updateAuroraView(){
   }
 }
 function drawViewLine(ctx,w,h){
-  function strokePoly(arr){
-    if(!arr||arr.length<3) return;
+  function strokeBand(arr){
+    if(!arr||arr.length<8) return false;
     ctx.beginPath();
-    arr.forEach(function(pt,i){
-      const p=xy(pt.lon, pt.lat, w, h);
-      if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
-    });
+    let started=false;
+    for(let lon=-180; lon<=180; lon+=1){
+      const lat=interpLine(arr, lon);
+      if(!isFinite(lat)) continue;
+      const p=xy(lon, lat, w, h);
+      if(!started){ ctx.moveTo(p[0],p[1]); started=true; }
+      else ctx.lineTo(p[0],p[1]);
+    }
     ctx.stroke();
+    return started;
   }
   const lines=[viewLineN, viewLineS];
   const has=lines.some(function(a){return a&&a.length>8});
   ctx.save();
-  ctx.setLineDash([10,6]);
-  ctx.strokeStyle="rgba(241,245,249,0.9)";
-  ctx.lineWidth=1.6;
   ctx.lineJoin="round";
   ctx.lineCap="round";
+  function paint(arr){
+    ctx.setLineDash([]);
+    ctx.strokeStyle="rgba(255,255,255,0.22)";
+    ctx.lineWidth=3.4;
+    strokeBand(arr);
+    ctx.setLineDash([7,5]);
+    ctx.strokeStyle="rgba(248,250,252,0.92)";
+    ctx.lineWidth=1.35;
+    strokeBand(arr);
+  }
   if(has){
-    lines.forEach(strokePoly);
+    lines.forEach(paint);
   }else{
     const kp=currentKpView(), V=viewMlat(kp);
-    [[V],[-V]].forEach(function(pair){
-      ctx.beginPath();
-      for(let lng=-180,i=0;lng<=180;lng+=2,i++){
-        const p=xy(lng, geoLatForMlat(pair[0], lng), w, h);
-        if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
-      }
-      ctx.stroke();
-    });
+    const fakeN=[], fakeS=[];
+    for(let lng=-180;lng<=180;lng+=3){
+      fakeN.push({lon:lng, lat:geoLatForMlat(V, lng)});
+      fakeS.push({lon:lng, lat:geoLatForMlat(-V, lng)});
+    }
+    paint(fakeN); paint(fakeS);
   }
   ctx.restore();
 }
@@ -1388,12 +1435,12 @@ async function startGlobe(){
     .pathPoints("coords")
     .pathPointLat(function(p){return Array.isArray(p)?p[0]:p.lat})
     .pathPointLng(function(p){return Array.isArray(p)?p[1]:(p.lng||p.lon)})
-    .pathColor(function(){return "rgba(241,245,249,0.88)"})
-    .pathStroke(0.42)
-    .pathPointAlt(0.005)
-    .pathResolution(6)
-    .pathDashLength(0.07)
-    .pathDashGap(0.035)
+    .pathColor(function(){return "rgba(248,250,252,0.86)"})
+    .pathStroke(0.55)
+    .pathPointAlt(0.006)
+    .pathResolution(4)
+    .pathDashLength(0.055)
+    .pathDashGap(0.028)
     .pathDashAnimateTime(0)
     (el);
   paintStars(el);

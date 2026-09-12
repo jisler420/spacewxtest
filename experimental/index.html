@@ -214,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.05</div>
+  <div class="pagefoot">V00.14.06</div>
 </div>
 <script>
 (function(){
@@ -1101,7 +1101,7 @@ function tick(){
     const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
   }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
-  if(min!==tick._termMin){tick._termMin=min; try{ if(globeCtl&&globeCtl.sun) globeCtl.sun(); else if(!globeCtl) drawEarth(); }catch(e){}}
+  if(min!==tick._termMin){tick._termMin=min; try{ if(globeCtl&&globeCtl.paint) globeCtl.paint(); else if(!globeCtl) drawEarth(); }catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -1213,80 +1213,87 @@ function viewPaths(){
   return out;
 }
 const EARTH_NIGHT="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg";
-const EARTH_DAY="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg";
-function bakeGlobeTex(){
-  return new Promise(function(res){
-    const dayImg=new Image(), nightImg=new Image();
-    let left=2;
-    function finish(){
-      if(--left) return;
-      const day=document.createElement("canvas");
-      day.width=2048; day.height=1024;
-      const dctx=day.getContext("2d");
-      if(dayImg.naturalWidth) dctx.drawImage(dayImg,0,0,2048,1024);
-      else dctx.fillStyle="#1a365d", dctx.fillRect(0,0,2048,1024);
-      const ni=document.createElement("canvas");
-      ni.width=2048; ni.height=1024;
-      const nctx=ni.getContext("2d");
-      if(nightImg.naturalWidth) nctx.drawImage(nightImg,0,0,2048,1024);
-      if(auroraData){
-        const off=document.createElement("canvas");
-        off.width=auroraData.width; off.height=auroraData.height;
-        off.getContext("2d").putImageData(auroraData,0,0);
-        nctx.save();
-        nctx.filter="blur(7px)";
-        nctx.globalCompositeOperation="screen";
-        nctx.globalAlpha=0.95;
-        nctx.drawImage(off,0,0,2048,1024);
-        nctx.restore();
-      }
-      res({day:day.toDataURL("image/jpeg",0.86), night:ni.toDataURL("image/jpeg",0.86)});
-    }
-    dayImg.crossOrigin=nightImg.crossOrigin="anonymous";
-    dayImg.onload=dayImg.onerror=finish;
-    nightImg.onload=nightImg.onerror=finish;
-    dayImg.src=EARTH_DAY;
-    nightImg.src=EARTH_NIGHT;
-  });
-}
 function sunLatLng(){
   const d=new Date(), start=Date.UTC(d.getUTCFullYear(),0,1), dayNum=(d-start)/864e5+1;
   const decl=-23.44*Math.cos((2*Math.PI/365)*(dayNum+10));
   const min=d.getUTCHours()*60+d.getUTCMinutes();
   return {lat:decl, lng:180-min/4};
 }
-function applySun(world){
-  if(!world||!world.scene) return;
-  const s=sunLatLng();
-  let pos=null;
-  try{ if(world.getCoords) pos=world.getCoords(s.lat, s.lng, 8); }catch(e){}
-  world.scene().traverse(function(o){
-    if(o.isAmbientLight){ o.intensity=0.07; o.color.setHex(0x334155); }
-    if(o.isDirectionalLight){
-      o.intensity=1.65;
-      o.color.setHex(0xfff1d0);
-      if(pos) o.position.copy(pos);
+function bakeGlobeTex(){
+  return new Promise(function(res){
+    const dayImg=new Image(), nightImg=new Image();
+    let left=2;
+    function finish(){
+      if(--left) return;
+      const w=2048, h=1024;
+      const c=document.createElement("canvas");
+      c.width=w; c.height=h;
+      const ctx=c.getContext("2d");
+      ctx.fillStyle="#070b12";
+      ctx.fillRect(0,0,w,h);
+      if(dayImg.naturalWidth) ctx.drawImage(dayImg,0,0,w,h);
+      if(nightImg.naturalWidth){
+        const nc=document.createElement("canvas");
+        nc.width=w; nc.height=h;
+        nc.getContext("2d").drawImage(nightImg,0,0,w,h);
+        const dayData=ctx.getImageData(0,0,w,h);
+        const nightData=nc.getContext("2d").getImageData(0,0,w,h);
+        const dd=dayData.data, nn=nightData.data;
+        const sun=sunLatLng();
+        const rad=Math.PI/180, sinD=Math.sin(sun.lat*rad), cosD=Math.cos(sun.lat*rad);
+        for(let y=0;y<h;y++){
+          const latR=(90-(y/h)*180)*rad, sinLat=Math.sin(latR), cosLat=Math.cos(latR);
+          for(let x=0;x<w;x++){
+            const lon=x/w*360-180;
+            const cosz=sinLat*sinD+cosLat*cosD*Math.cos((lon-sun.lng)*rad);
+            const i=(y*w+x)*4;
+            let u=0;
+            if(cosz<=-0.08) u=1;
+            else if(cosz<0.12) u=1-(cosz+0.08)/0.2;
+            if(u>0){
+              dd[i]=dd[i]*(1-u)+nn[i]*u;
+              dd[i+1]=dd[i+1]*(1-u)+nn[i+1]*u;
+              dd[i+2]=dd[i+2]*(1-u)+nn[i+2]*u;
+            }
+          }
+        }
+        ctx.putImageData(dayData,0,0);
+      }
+      if(auroraData){
+        const off=document.createElement("canvas");
+        off.width=auroraData.width; off.height=auroraData.height;
+        off.getContext("2d").putImageData(auroraData,0,0);
+        ctx.save();
+        ctx.filter="blur(1.8px)";
+        ctx.globalCompositeOperation="screen";
+        ctx.drawImage(off,0,0,w,h);
+        ctx.restore();
+      }
+      res(c.toDataURL("image/jpeg", 0.88));
     }
+    dayImg.crossOrigin=nightImg.crossOrigin="anonymous";
+    dayImg.onload=dayImg.onerror=finish;
+    nightImg.onload=nightImg.onerror=finish;
+    dayImg.src=BASE.replace("size=1600,756","size=2048,1024");
+    nightImg.src=EARTH_NIGHT;
   });
 }
-function attachNight(world, nightUrl){
-  const mat=world.globeMaterial && world.globeMaterial();
-  if(!mat||!mat.map) return;
-  const img=new Image();
-  img.crossOrigin="anonymous";
-  img.onload=function(){
-    try{
-      const Tex=mat.map.constructor;
-      const tex=new Tex(img);
-      if(mat.map.colorSpace) tex.colorSpace=mat.map.colorSpace;
-      tex.needsUpdate=true;
-      mat.emissiveMap=tex;
-      if(mat.emissive&&mat.emissive.setRGB) mat.emissive.setRGB(1,1,1);
-      mat.emissiveIntensity=0.85;
-      mat.needsUpdate=true;
-    }catch(e){}
-  };
-  img.src=nightUrl;
+function terminatorCoords(){
+  const sun=sunLatLng();
+  const rad=Math.PI/180, t=Math.tan(sun.lat*rad);
+  const coords=[];
+  for(let lng=-180;lng<=180;lng+=2){
+    let lat=0;
+    if(Math.abs(t)>1e-6) lat=Math.atan(-Math.cos((lng-sun.lng)*rad)/t)/rad;
+    coords.push([Math.max(-89.5, Math.min(89.5, lat)), lng]);
+  }
+  return coords;
+}
+function allPaths(){
+  const out=viewPaths().map(function(p){ p.kind="view"; return p; });
+  const t=terminatorCoords();
+  if(t.length>8) out.push({coords:t, kind:"term"});
+  return out;
 }
 function globePin(){
   return [{lat:cfg.lat, lng:cfg.lon, pct:Math.round(viewPctAt(cfg.lat, cfg.lon))}];
@@ -1310,28 +1317,30 @@ async function startGlobe(){
     .backgroundColor("#070b12")
     .showGlobe(true)
     .showAtmosphere(true)
-    .atmosphereColor("#4b6d92")
-    .atmosphereAltitude(0.15)
-    .globeImageUrl(tex.day)
+    .atmosphereColor("#2a3548")
+    .atmosphereAltitude(0.12)
+    .globeImageUrl(tex)
     .htmlElementsData(globePin())
     .htmlLat("lat")
     .htmlLng("lng")
     .htmlElement(pinEl)
     .htmlAltitude(0.015)
-    .pathsData(viewPaths())
+    .pathsData(allPaths())
     .pathPoints("coords")
     .pathPointLat(function(p){return Array.isArray(p)?p[0]:p.lat})
     .pathPointLng(function(p){return Array.isArray(p)?p[1]:(p.lng||p.lon)})
-    .pathColor(function(){return "#ef4444"})
-    .pathStroke(0.7)
+    .pathColor(function(d){return d.kind==="term"?"rgba(226,232,240,0.75)":"#ef4444"})
+    .pathStroke(function(d){return d.kind==="term"?0.45:0.7})
     .pathPointAlt(0.008)
     .pathResolution(3)
     (el);
   world.width(el.clientWidth||el.offsetWidth);
   world.height(el.clientHeight||el.offsetHeight);
   world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:2.05}, 0);
-  attachNight(world, tex.night);
-  applySun(world);
+  try{
+    const m=world.globeMaterial();
+    if(m){ m.shininess=0; if(m.specular&&m.specular.setHex) m.specular.setHex(0x000000); }
+  }catch(e){}
   const ctl=world.controls();
   ctl.autoRotate=true;
   ctl.autoRotateSpeed=0.18;
@@ -1341,23 +1350,17 @@ async function startGlobe(){
   ctl.addEventListener("start", function(){ ctl.autoRotate=false; });
   function refresh(){
     try{ world.htmlElementsData(globePin()); }catch(e){}
-    try{ world.pathsData(viewPaths()); }catch(e){}
-    applySun(world);
+    try{ world.pathsData(allPaths()); }catch(e){}
   }
   async function paint(){
-    try{
-      const t=await bakeGlobeTex();
-      world.globeImageUrl(t.day);
-      attachNight(world, t.night);
-    }catch(e){}
+    try{ world.globeImageUrl(await bakeGlobeTex()); }catch(e){}
     refresh();
   }
   function resize(){
     world.width(el.clientWidth||640);
     world.height(el.clientHeight||320);
   }
-  globeCtl={refresh:refresh, paint:paint, resize:resize, world:world, sun:function(){applySun(world);}};
-  setInterval(function(){ if(!document.hidden) applySun(world); }, 400);
+  globeCtl={refresh:refresh, paint:paint, resize:resize, world:world};
 }
 startGlobe().then(function(){
   const mb=document.getElementById("mapbox"); if(mb) mb.style.display="none";

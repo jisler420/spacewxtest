@@ -212,7 +212,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.03</div>
+  <div class="pagefoot">V00.13.04</div>
 </div>
 <script>
 (function(){
@@ -914,47 +914,44 @@ function buildViewLines(coords){
   (coords||[]).forEach(function(p){
     if(!p||p.length<3||p[2]<8||Math.abs(p[1])<22) return;
     const lon=lonNorm(p[0]), lat=p[1], v=p[2];
-    const i=Math.max(0, Math.min(n-1, Math.round((lon+180)/step)%n));
+    const i=Math.max(0, Math.min(n-1, Math.floor((lon+180)/step)));
     if(lat>0){
-      if(!N[i] || v>N[i].p || (v===N[i].p && lat<N[i].lat)) N[i]={lon:lon,lat:lat,p:v};
+      if(!N[i] || v>N[i].p || (v===N[i].p && lat<N[i].lat)) N[i]={lat:lat,p:v};
     }else{
-      if(!S[i] || v>S[i].p || (v===S[i].p && lat>S[i].lat)) S[i]={lon:lon,lat:lat,p:v};
+      if(!S[i] || v>S[i].p || (v===S[i].p && lat>S[i].lat)) S[i]={lat:lat,p:v};
     }
   });
-  function fill(arr){
-    for(let pass=0; pass<4; pass++){
-      for(let i=0;i<n;i++){
-        if(arr[i]) continue;
-        const a=arr[(i-1+n)%n], b=arr[(i+1)%n];
-        if(a&&b) arr[i]={lon:-180+i*step, lat:(a.lat+b.lat)/2, p:(a.p+b.p)/2};
+  function complete(arr){
+    for(let i=0;i<n;i++){
+      if(arr[i]) continue;
+      let src=null;
+      for(let d=1;d<n;d++){
+        if(arr[(i-d+n)%n]){src=arr[(i-d+n)%n];break;}
+        if(arr[(i+d)%n]){src=arr[(i+d)%n];break;}
       }
+      if(src) arr[i]={lat:src.lat,p:src.p};
     }
   }
-  fill(N); fill(S);
+  complete(N); complete(S);
   function pack(arr, south){
-    const peak=[], view=[];
-    const tmp=[];
+    const sm=[];
     for(let i=0;i<n;i++){
-      const rec=arr[i];
-      if(!rec) continue;
-      tmp.push(rec);
+      if(!arr[i]) continue;
+      let s=0,c=0;
+      for(let k=-3;k<=3;k++){
+        const rec=arr[(i+k+n)%n];
+        if(rec){s+=rec.lat;c++;}
+      }
+      const lat=s/c, p=arr[i].p, lon=-180+i*step;
+      const off=viewOffsetDeg(p);
+      sm.push({lon:lon, peak:lat, view:south?Math.min(-18,lat+off):Math.max(18,lat-off)});
     }
-    function smooth(list){
-      return list.map(function(rec,i){
-        let s=0,c=0;
-        for(let k=-2;k<=2;k++){
-          const j=i+k;
-          if(j<0||j>=list.length) continue;
-          s+=list[j].lat; c++;
-        }
-        return {lon:rec.lon, lat:s/c, p:rec.p};
-      });
+    const peak=sm.map(function(r){return {lon:r.lon,lat:r.peak};});
+    const view=sm.map(function(r){return {lon:r.lon,lat:r.view};});
+    if(view.length){
+      peak.push({lon:180,lat:peak[0].lat});
+      view.push({lon:180,lat:view[0].lat});
     }
-    smooth(tmp).forEach(function(rec){
-      const off=viewOffsetDeg(rec.p);
-      peak.push({lon:rec.lon, lat:rec.lat});
-      view.push({lon:rec.lon, lat:south? Math.min(-18, rec.lat+off): Math.max(18, rec.lat-off)});
-    });
     return {peak:peak, view:view};
   }
   const pn=pack(N,false), ps=pack(S,true);
@@ -1000,15 +997,9 @@ function drawViewLine(ctx,w,h){
   function strokePoly(arr){
     if(!arr||arr.length<3) return;
     ctx.beginPath();
-    let started=false, prevLon=null;
-    arr.forEach(function(pt){
+    arr.forEach(function(pt,i){
       const p=xy(pt.lon, pt.lat, w, h);
-      if(prevLon!=null && Math.abs(pt.lon-prevLon)>20){
-        started=false;
-      }
-      if(!started){ ctx.moveTo(p[0],p[1]); started=true; }
-      else ctx.lineTo(p[0],p[1]);
-      prevLon=pt.lon;
+      if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
     });
     ctx.stroke();
   }
@@ -1042,12 +1033,31 @@ function drawEarth(){
   const ctx=el.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle="#070b12";ctx.fillRect(0,0,w,h);
   if(baseImg&&baseImg.complete)ctx.drawImage(baseImg,0,0,w,h);
   const d=new Date(),start=Date.UTC(d.getUTCFullYear(),0,1),day=(d-start)/864e5+1,decl=-23.44*Math.cos((2*Math.PI/365)*(day+10));
-  const min=d.getUTCHours()*60+d.getUTCMinutes(),lngSun=180-min/4,rad=Math.PI/180,line=[];
-  for(let lng=-180;lng<=180;lng+=2){let lat=0,t=Math.tan(decl*rad);if(Math.abs(t)>1e-6)lat=Math.atan(-Math.cos((lng-lngSun)*rad)/t)/rad;line.push(xy(lng,Math.max(-90,Math.min(90,lat)),w,h))}
-  ctx.beginPath();line.forEach(function(p,i){i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])});
-  if(decl>=0){ctx.lineTo(w,h);ctx.lineTo(0,h)}else{ctx.lineTo(w,0);ctx.lineTo(0,0)}
-  ctx.closePath();ctx.fillStyle="rgba(0,0,0,0.42)";ctx.fill();
-  ctx.beginPath();line.forEach(function(p,i){i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])});ctx.strokeStyle="rgba(226,232,240,0.7)";ctx.lineWidth=1.2;ctx.stroke();
+  const min=d.getUTCHours()*60+d.getUTCMinutes(),lngSun=180-min/4,rad=Math.PI/180;
+  const sinD=Math.sin(decl*rad), cosD=Math.cos(decl*rad);
+  ctx.fillStyle="rgba(0,0,0,0.42)";
+  for(let x=0;x<w;x++){
+    const lon=x/w*360-180;
+    const cosH=Math.cos((lon-lngSun)*rad);
+    let y0=-1, run=0;
+    for(let y=0;y<h;y++){
+      const lat=90-(y/h)*180;
+      const latR=lat*rad;
+      const cosz=Math.sin(latR)*sinD+Math.cos(latR)*cosD*cosH;
+      if(cosz<0){ if(y0<0) y0=y; run++; }
+      else if(y0>=0){ ctx.fillRect(x,y0,1,run); y0=-1; run=0; }
+    }
+    if(y0>=0) ctx.fillRect(x,y0,1,run);
+  }
+  ctx.beginPath();
+  for(let lng=-180,i=0;lng<=180;lng+=2,i++){
+    const cosH=Math.cos((lng-lngSun)*rad);
+    let lat=0;
+    if(Math.abs(sinD)>1e-6) lat=Math.atan((-cosD*cosH)/sinD)/rad;
+    const p=xy(lng, Math.max(-89.5, Math.min(89.5, lat)), w, h);
+    if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
+  }
+  ctx.strokeStyle="rgba(226,232,240,0.55)"; ctx.lineWidth=1.2; ctx.stroke();
   if(auroraData){const off=document.createElement("canvas");off.width=auroraData.width;off.height=auroraData.height;off.getContext("2d").putImageData(auroraData,0,0);ctx.save();ctx.imageSmoothingEnabled=true;ctx.globalCompositeOperation="screen";ctx.filter="blur(1.6px)";ctx.drawImage(off,0,0,w,h);ctx.restore()}
   drawViewLine(ctx,w,h);
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();

@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.22</div>
+  <div class="pagefoot">V00.14.23</div>
 </div>
 <script>
 (function(){
@@ -558,6 +558,16 @@ async function refreshHemi(){
   if(live) applyHemi(live);
   else try{drawHemiPlot()}catch(e){}
 }
+async function refreshKp1m(){
+  const base=document.baseURI||location.href;
+  const urls=[
+    new URL("../data/kp1m-archive.json", base).href,
+    "https://jisler420.github.io/spacewxtest/data/kp1m-archive.json",
+    "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
+  ];
+  const got=await Promise.all(urls.map(function(u){return settled(u)}));
+  got.forEach(function(d){ if(d) drawKp1m(d); });
+}
 function parseNoaa3DayText(txt){
   const lines=String(txt||"").split(/\n/);
   let year=new Date().getUTCFullYear();
@@ -854,7 +864,7 @@ async function loadWindImf(){
   markUpdated();
 }
 async function loadWx(){
-  const [kp,sc,kf,dayTxt,dst,dstPred,hemi,hemiSnap,kp1m]=await Promise.all([
+  const [kp,sc,kf,dayTxt,dst,dstPred,hemi,hemiSnap,kp1mSnap,kp1m]=await Promise.all([
     settled("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"),
     settled("https://services.swpc.noaa.gov/products/noaa-scales.json"),
     settled("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"),
@@ -863,6 +873,7 @@ async function loadWx(){
     settled("https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json"),
     settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt"),
     settled("../data/hemi-archive.txt"),
+    settled("../data/kp1m-archive.json"),
     settled("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json")
   ]);
   const k=Number((newestByTime(kp)||last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(newestByTime(kp)||last(kp)||{}).time_tag,"kp")}
@@ -874,6 +885,7 @@ async function loadWx(){
   if(Array.isArray(dst)||Array.isArray(dstPred)) drawDst();
   if(hemiSnap) applyHemi(hemiSnap);
   if(hemi) applyHemi(hemi);
+  if(kp1mSnap) drawKp1m(kp1mSnap);
   if(kp1m) drawKp1m(kp1m);
   drawSw();
 }
@@ -1199,12 +1211,12 @@ function applyWorkerData(data){
 tick();
 try{drawHemiPlot()}catch(e){}
 restoreKp1m();
-settled("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json").then(function(kp1m){ if(kp1m) drawKp1m(kp1m); });
+refreshKp1m();
 refreshHemi();
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001422", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001423", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

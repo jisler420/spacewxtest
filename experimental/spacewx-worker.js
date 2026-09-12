@@ -13,6 +13,7 @@ const NOAA = {
   sumMag: "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
   sumSpeed: "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
   kp1m: "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
+  kp1mSnap: "../data/kp1m-archive.json",
 };
 
 const bodyCache = Object.create(null);
@@ -221,11 +222,12 @@ async function collect(kind, signal) {
   const wantSlow = kind === "slow" || kind === "all";
 
   if (wantFast) {
-    const [mag, plasma, dstGot, kp1mGot] = await Promise.all([
+    const [mag, plasma, dstGot, kp1mGot, kp1mSnapGot] = await Promise.all([
       hapi("solar_wind_mag_rt", "bt,bx_gsm,by_gsm,bz_gsm", hapiStart(series.mag), stop, signal),
       hapi("solar_wind_plasma_rt", "density,speed,temperature", hapiStart(series.plasma), stop, signal),
       settled(NOAA.dst, signal),
       settled(NOAA.kp1m, signal),
+      settled(NOAA.kp1mSnap, signal),
     ]);
     series.mag = mergeRows(series.mag, mag);
     series.plasma = mergeRows(series.plasma, plasma);
@@ -247,20 +249,24 @@ async function collect(kind, signal) {
     if (putSeries(out, "mag", series.mag)) changed = true;
     if (putSeries(out, "plasma", series.plasma)) changed = true;
     if (dst && putIfChanged(out, "dst", dst.data)) changed = true;
-    if (kp1mGot && kp1mGot.data) {
-      const rows = Array.isArray(kp1mGot.data) ? kp1mGot.data : [];
+    {
+      function kpRows(data) {
+        const raw = Array.isArray(data) ? data : (data && (data.rows || data.data)) || [];
+        return Array.isArray(raw) ? raw : [];
+      }
+      const merged = kpRows(kp1mSnapGot && kp1mSnapGot.data).concat(kpRows(kp1mGot && kp1mGot.data));
       let tmax = 0;
-      rows.forEach(function (r) {
-        const t = parseT(r && r.time_tag);
-        if (Number.isFinite(t) && t > tmax) tmax = t;
-      });
-      const cut = Math.max(Date.now(), tmax) - 90 * 60000;
-      const recent = [];
-      rows.forEach(function (r) {
+      const by = Object.create(null);
+      merged.forEach(function (r) {
         const t = parseT(r && r.time_tag);
         const k = Number(r && (r.estimated_kp != null ? r.estimated_kp : r.kp));
-        if (Number.isFinite(t) && t >= cut && Number.isFinite(k)) recent.push({ time_tag: r.time_tag, estimated_kp: k, kp: r.kp });
+        if (Number.isFinite(t) && Number.isFinite(k)) {
+          by[t] = { time_tag: r.time_tag, estimated_kp: k, kp: r.kp };
+          if (t > tmax) tmax = t;
+        }
       });
+      const cut = Math.max(Date.now(), tmax) - 90 * 60000;
+      const recent = Object.keys(by).map(Number).filter(function (t) { return t >= cut; }).sort(function (a, b) { return a - b; }).map(function (t) { return by[t]; });
       if (recent.length && putIfChanged(out, "kp1m", recent)) changed = true;
     }
   }

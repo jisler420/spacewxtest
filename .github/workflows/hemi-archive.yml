@@ -15,17 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Merge NOAA hemi-power (36h)
-        run: python3 scripts/merge_hemi.py
+      - name: Merge NOAA hemi-power (36h) and Kp 1m (6h)
+        run: |
+          python3 scripts/merge_hemi.py
+          python3 scripts/merge_kp1m.py
       - name: Commit if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/hemi-archive.txt
+          git add data/hemi-archive.txt data/kp1m-archive.json
           if git diff --cached --quiet; then
             echo "no archive change"
             exit 0
           fi
-          git commit -m "hemi-archive snapshot (36h rolling)"
+          git commit -m "archive snapshot (hemi 36h, kp1m 6h)"
           git pull --rebase --autostash origin main || git pull --rebase origin main || true
           git push

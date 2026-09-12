@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Merge NOAA hemi-power snapshot (36h)
         run: python3 scripts/merge_hemi.py
+      - name: Merge NOAA Kp 1m snapshot (6h)
+        run: python3 scripts/merge_kp1m.py
       - name: Stage site
         run: |
           mkdir -p _site/data _site/lib

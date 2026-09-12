@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.23</div>
+  <div class="pagefoot">V00.14.24</div>
 </div>
 <script>
 (function(){
@@ -295,7 +295,7 @@ let hemiPolledAt=0;
 let kp1mBuf=[];
 const KP1M_KEY="spacewx-kp1m";
 function persistKp1m(){
-  try{ localStorage.setItem(KP1M_KEY, JSON.stringify((kp1mBuf||[]).map(function(r){return {time_tag:r.time_tag,estimated_kp:r.estimated_kp}}))); }catch(e){}
+  try{ localStorage.setItem(KP1M_KEY, JSON.stringify((kp1mBuf||[]).map(function(r){return {time_tag:r.time_tag,estimated_kp:r.estimated_kp,kp:r.kp}}))); }catch(e){}
 }
 function restoreKp1m(){
   try{
@@ -769,26 +769,35 @@ function drawKp1m(row){
     if(!r)return;
     const t=parseT(r.time_tag);
     const k=Number(r.estimated_kp!=null?r.estimated_kp:r.kp);
-    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,t:t,estimated_kp:k};
+    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,t:t,estimated_kp:k,kp:r.kp};
   });
   const times=Object.keys(by).map(Number).sort(function(a,b){return a-b});
   const latestT=times.length?times[times.length-1]:0;
   const KEEP=90*60000;
   const cut=latestT-KEEP;
   kp1mBuf=times.filter(function(t){return t>=cut}).map(function(t){return by[t]});
-  const latest=kp1mBuf.length?kp1mBuf[kp1mBuf.length-1]:null;
+  function isKpFill(r){
+    if(!r||!isFinite(r.estimated_kp)) return true;
+    const code=String(r.kp||"");
+    return r.estimated_kp===0 && (code===""||code==="0Z"||code==="0");
+  }
+  let used=kp1mBuf.slice();
+  while(used.length && isKpFill(used[used.length-1])) used.pop();
+  if(!used.length) used=kp1mBuf.slice();
+  const latest=used.length?used[used.length-1]:null;
   if(!latest) return;
+  const avgT=latest.t;
   stampWhen("tKp1m", latest.time_tag, "kp1m");
   function lastN(n){
-    const slice=kp1mBuf.slice(-n);
+    const slice=used.slice(-n);
     if(!slice.length) return NaN;
     let s=0; slice.forEach(function(r){s+=r.estimated_kp});
     return s/slice.length;
   }
   function avgSince(ms){
-    const t0=latestT-ms;
+    const t0=avgT-ms;
     let s=0,n=0;
-    kp1mBuf.forEach(function(r){ if(r.t>=t0){s+=r.estimated_kp;n++} });
+    used.forEach(function(r){ if(r.t>=t0){s+=r.estimated_kp;n++} });
     return n?s/n:NaN;
   }
   const a5=lastN(5), a15=avgSince(15*60000), a30=avgSince(30*60000);

@@ -282,7 +282,7 @@ async function collect(kind, signal) {
       settled(NOAA.dstPred, signal),
       settled(NOAA.hemi, signal),
       settled(NOAA.hemiSnap, signal),
-      settled("./hp30.txt", signal),
+      settled("../hp30.txt", signal),
     ]);
     series.enlil = mergeRows(series.enlil, enlil);
     series.hp = mergeRows(series.hp, hp);
@@ -314,7 +314,7 @@ async function collect(kind, signal) {
     dst: !!(bodyCache[NOAA.dst] || src.dst),
     dstPred: !!bodyCache[NOAA.dstPred],
     hemi: !!bodyCache[NOAA.hemi] || !!bodyCache[NOAA.hemiSnap],
-    hp: series.hp.length > 0 || !!bodyCache["./hp30.txt"],
+    hp: series.hp.length > 0 || !!bodyCache["../hp30.txt"],
     kp: !!(bodyCache[NOAA.kp] || src.kp),
     scales: !!bodyCache[NOAA.scales],
     forecast: !!(bodyCache[NOAA.kf] || bodyCache[NOAA.day]),

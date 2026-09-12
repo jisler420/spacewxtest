@@ -823,7 +823,7 @@ async function loadWx(){
   drawSw();
 }
 async function loadHp30(){
-  const txt=await settled("./hp30.txt");
+  const txt=await settled("../hp30.txt");
   if(!txt)return;
   const rows=parseGfzHp30(txt);
   if(rows.length){cache.hp30=rows;drawHp30()}

@@ -214,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.09</div>
+  <div class="pagefoot">V00.14.10</div>
 </div>
 <script>
 (function(){
@@ -1101,7 +1101,7 @@ function tick(){
     const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
   }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
-  if(min!==tick._termMin){tick._termMin=min; try{ if(globeCtl&&globeCtl.paint) globeCtl.paint(); else if(!globeCtl) drawEarth(); }catch(e){}}
+  if(min!==tick._termMin){tick._termMin=min; try{ if(!globeCtl) drawEarth(); }catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -1157,7 +1157,7 @@ refreshHemi();
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001302", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001410", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

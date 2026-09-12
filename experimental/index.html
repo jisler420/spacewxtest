@@ -183,7 +183,7 @@ th:first-child,td:first-child{text-align:left}
     <div>
       <div class="globebox" id="globeBox"></div>
       <div class="mapbox" id="mapbox"><canvas id="earth"></canvas></div>
-      <div class="muted" id="mapStatus">3D globe · drag to spin · scroll to zoom</div>
+      <div class="muted" id="mapStatus">3D globe · drag to spin · pinch/scroll zoom</div>
     </div>
     <div class="card">
       <h2>Kp forecast · 3-day</h2>
@@ -214,7 +214,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.10</div>
+  <div class="pagefoot">V00.14.11</div>
 </div>
 <script>
 (function(){
@@ -1081,7 +1081,7 @@ async function loadAurora(){
   buildViewLines(coords);
   const obs=o["Observation Time"]||o["Forecast Time"]||"";
   stampWhen("tAurora", obs, "hemi");
-  mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · red = SWPC view line"):"equirectangular Earth · poles + OVATION · red = SWPC view line";
+  mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = view line"):"3D globe · drag to spin · pinch/scroll zoom";
   updateAuroraView();
 }
 (function(){const img=new Image();img.crossOrigin="anonymous";img.onload=function(){baseImg=img;drawEarth()};img.src=BASE})();
@@ -1145,7 +1145,7 @@ function applyWorkerData(data){
   buildViewLines(coords);
       const obs=data.aurora["Observation Time"]||data.aurora["Forecast Time"]||"";
       stampWhen("tAurora", obs, "hemi");
-      mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · red = view line · 3D"):"3D globe · drag to spin · scroll to zoom";
+      mapStatus.textContent=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = view line"):"3D globe · drag to spin · pinch/scroll zoom";
       updateAuroraView();
     }
   }

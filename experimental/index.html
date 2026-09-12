@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.13</div>
+  <div class="pagefoot">V00.14.14</div>
 </div>
 <script>
 (function(){
@@ -1275,6 +1275,29 @@ function pinEl(d){
   w.innerHTML='<div style="width:10px;height:10px;border-radius:50%;background:#2dd4bf;margin:0 auto 5px;box-shadow:0 0 0 3px rgba(45,212,191,.3)"></div><div style="background:#070b12;border:1px solid #2dd4bf;color:#5eead4;border-radius:6px;padding:2px 7px">'+(isFinite(d.pct)?d.pct:0)+'%</div>';
   return w;
 }
+function paintStars(host){
+  if(!host) return;
+  let c=host.querySelector("#starfield");
+  if(!c){
+    c=document.createElement("canvas");
+    c.id="starfield";
+    c.style.cssText="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0";
+    host.insertBefore(c, host.firstChild);
+  }
+  const w=Math.max(2, host.clientWidth||800), h=Math.max(2, host.clientHeight||400);
+  c.width=Math.round(w*2); c.height=Math.round(h*2);
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#05070c";
+  ctx.fillRect(0,0,c.width,c.height);
+  const n=Math.round((c.width*c.height)/1600);
+  for(let i=0;i<n;i++){
+    const x=Math.random()*c.width, y=Math.random()*c.height, a=0.18+Math.random()*0.82;
+    ctx.fillStyle="rgba(255,255,255,"+a+")";
+    ctx.beginPath();
+    ctx.arc(x,y, Math.random()<0.1?1.8:0.7, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
 async function startGlobe(){
   if(typeof Globe!=="function"){
     await loadScript("https://cdn.jsdelivr.net/npm/globe.gl@2.41.4/dist/globe.gl.min.js");
@@ -1285,7 +1308,7 @@ async function startGlobe(){
   el.innerHTML="";
   const tex=await bakeGlobeTex();
   const world=Globe()
-    .backgroundColor("#070b12")
+    .backgroundColor("rgba(0,0,0,0)")
     .showGlobe(true)
     .showAtmosphere(true)
     .atmosphereColor("#243656")
@@ -1308,6 +1331,13 @@ async function startGlobe(){
     .pathDashGap(0.035)
     .pathDashAnimateTime(0)
     (el);
+  paintStars(el);
+  try{
+    world.renderer().setClearColor(0x000000, 0);
+    world.renderer().setClearAlpha(0);
+  }catch(e){}
+  const glc=el.querySelector("canvas:not(#starfield)");
+  if(glc){ glc.style.position="absolute"; glc.style.inset="0"; glc.style.zIndex="1"; glc.style.background="transparent"; }
   world.width(el.clientWidth||el.offsetWidth);
   world.height(el.clientHeight||el.offsetHeight);
   world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:2.05}, 0);
@@ -1329,6 +1359,7 @@ async function startGlobe(){
   function resize(){
     world.width(el.clientWidth||640);
     world.height(el.clientHeight||320);
+    paintStars(el);
   }
   globeCtl={refresh:refresh, paint:paint, resize:resize, world:world};
 }

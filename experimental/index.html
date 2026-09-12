@@ -212,7 +212,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.02</div>
+  <div class="pagefoot">V00.13.03</div>
 </div>
 <script>
 (function(){
@@ -905,7 +905,7 @@ function geoLatForMlat(want, lon){
 }
 function viewOffsetDeg(p){
   const t=Math.max(0, Math.min(1, (Number(p)||0)/80));
-  return 9 + 6*t;
+  return 11 + 5*t;
 }
 function lonNorm(lon){ let x=Number(lon); if(x>180) x-=360; if(x<=-180) x+=360; return x; }
 function buildViewLines(coords){
@@ -933,14 +933,28 @@ function buildViewLines(coords){
   fill(N); fill(S);
   function pack(arr, south){
     const peak=[], view=[];
+    const tmp=[];
     for(let i=0;i<n;i++){
       const rec=arr[i];
-      const lon=-180+i*step;
       if(!rec) continue;
-      const off=viewOffsetDeg(rec.p);
-      peak.push({lon:lon, lat:rec.lat});
-      view.push({lon:lon, lat:south? Math.min(-12, rec.lat+off): Math.max(12, rec.lat-off)});
+      tmp.push(rec);
     }
+    function smooth(list){
+      return list.map(function(rec,i){
+        let s=0,c=0;
+        for(let k=-2;k<=2;k++){
+          const j=i+k;
+          if(j<0||j>=list.length) continue;
+          s+=list[j].lat; c++;
+        }
+        return {lon:rec.lon, lat:s/c, p:rec.p};
+      });
+    }
+    smooth(tmp).forEach(function(rec){
+      const off=viewOffsetDeg(rec.p);
+      peak.push({lon:rec.lon, lat:rec.lat});
+      view.push({lon:rec.lon, lat:south? Math.min(-18, rec.lat+off): Math.max(18, rec.lat-off)});
+    });
     return {peak:peak, view:view};
   }
   const pn=pack(N,false), ps=pack(S,true);
@@ -983,6 +997,21 @@ function updateAuroraView(){
   try{drawEarth()}catch(e){}
 }
 function drawViewLine(ctx,w,h){
+  function strokePoly(arr){
+    if(!arr||arr.length<3) return;
+    ctx.beginPath();
+    let started=false, prevLon=null;
+    arr.forEach(function(pt){
+      const p=xy(pt.lon, pt.lat, w, h);
+      if(prevLon!=null && Math.abs(pt.lon-prevLon)>20){
+        started=false;
+      }
+      if(!started){ ctx.moveTo(p[0],p[1]); started=true; }
+      else ctx.lineTo(p[0],p[1]);
+      prevLon=pt.lon;
+    });
+    ctx.stroke();
+  }
   const lines=[viewLineN, viewLineS];
   const has=lines.some(function(a){return a&&a.length>8});
   ctx.save();
@@ -990,16 +1019,9 @@ function drawViewLine(ctx,w,h){
   ctx.strokeStyle="#ef4444";
   ctx.lineWidth=2.2;
   ctx.lineJoin="round";
+  ctx.lineCap="round";
   if(has){
-    lines.forEach(function(arr){
-      if(!arr||arr.length<2) return;
-      ctx.beginPath();
-      arr.concat([arr[0]]).forEach(function(pt,i){
-        const p=xy(pt.lon, pt.lat, w, h);
-        if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
-      });
-      ctx.stroke();
-    });
+    lines.forEach(strokePoly);
   }else{
     const kp=currentKpView(), V=viewMlat(kp);
     [[V],[-V]].forEach(function(pair){

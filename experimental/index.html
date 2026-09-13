@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.27</div>
+  <div class="pagefoot">V00.14.28</div>
 </div>
 <script>
 (function(){
@@ -398,6 +398,16 @@ function mergeHemi(rows){
     if(!by[t50] && by[t45]) copySlot(t45, t50);
     if(!by[t55] && (by[t50]||by[t45])) copySlot(by[t50]?t50:t45, t55);
   });
+  const keys=Object.keys(by).map(Number).sort(function(a,b){return a-b});
+  const STEP=5*60000, MAXGAP=90*60000;
+  for(let i=0;i<keys.length-1;i++){
+    const a=keys[i], b=keys[i+1], gap=b-a;
+    if(gap<=STEP+2000 || gap>MAXGAP) continue;
+    const src=by[a];
+    for(let t=a+STEP; t<b-2000; t+=STEP){
+      if(!by[t]) by[t]={obs:t, fcst:(src.fcst||src.obs)+(t-src.obs), n:src.n, s:src.s};
+    }
+  }
   const cut=Date.now()-HEMI_KEEP;
   hemiSeries=Object.keys(by).map(Number).sort(function(a,b){return a-b}).map(function(k){return by[k]}).filter(function(r){return r.obs>=cut});
   try{localStorage.setItem(HEMI_LS, JSON.stringify(hemiSeries))}catch(e){}

@@ -35,31 +35,57 @@ def load_all():
 
 
 def fill_utc_day_end(by):
-    """NOAA's day file stops at 23:50. Copy 23:45→23:50 and 23:50→23:55 if missing."""
-    days = sorted({k[:10] for k in by})
-    for day in days:
-        k45, k50, k55 = f"{day}_23:45", f"{day}_23:50", f"{day}_23:55"
-        def clone(src_key, dst_key):
-            ln = by.get(src_key)
-            if not ln:
-                return
-            parts = ln.split()
-            if len(parts) < 4:
-                return
-            obs, fcst, n, s = parts[0], parts[1], parts[2], parts[3]
-            try:
-                t0 = datetime.datetime.strptime(obs, "%Y-%m-%d_%H:%M")
-                t1 = datetime.datetime.strptime(fcst, "%Y-%m-%d_%H:%M")
-                dst = datetime.datetime.strptime(dst_key, "%Y-%m-%d_%H:%M")
-            except ValueError:
-                return
-            dt = dst - t0
-            nf = (t1 + dt).strftime("%Y-%m-%d_%H:%M")
-            by[dst_key] = f"{dst_key}    {nf}      {n}      {s}"
-        if k50 not in by and k45 in by:
-            clone(k45, k50)
-        if k55 not in by and (k50 in by or k45 in by):
-            clone(k50 if k50 in by else k45, k55)
+    """Hold-forward 5-min slots across gaps ≤90 min and pad a UTC day to 23:55."""
+    STEP = datetime.timedelta(minutes=5)
+    MAXGAP = datetime.timedelta(minutes=90)
+
+    def clone(src_key, dst_key):
+        ln = by.get(src_key)
+        if not ln or dst_key in by:
+            return
+        parts = ln.split()
+        if len(parts) < 4:
+            return
+        obs, fcst, n, s = parts[0], parts[1], parts[2], parts[3]
+        try:
+            t0 = datetime.datetime.strptime(obs, "%Y-%m-%d_%H:%M")
+            t1 = datetime.datetime.strptime(fcst, "%Y-%m-%d_%H:%M")
+            dst = datetime.datetime.strptime(dst_key, "%Y-%m-%d_%H:%M")
+        except ValueError:
+            return
+        nf = (t1 + (dst - t0)).strftime("%Y-%m-%d_%H:%M")
+        by[dst_key] = f"{dst_key}    {nf}      {n}      {s}"
+
+    parsed = []
+    for k in list(by):
+        try:
+            parsed.append(datetime.datetime.strptime(k, "%Y-%m-%d_%H:%M"))
+        except ValueError:
+            continue
+    parsed.sort()
+    for i in range(len(parsed) - 1):
+        t, nxt = parsed[i], parsed[i + 1]
+        if STEP < (nxt - t) <= MAXGAP:
+            src = t.strftime("%Y-%m-%d_%H:%M")
+            cur = t + STEP
+            while cur < nxt:
+                clone(src, cur.strftime("%Y-%m-%d_%H:%M"))
+                cur += STEP
+    by_day = {}
+    for t in parsed:
+        by_day.setdefault(t.date(), []).append(t)
+    for day, ts in by_day.items():
+        last = max(ts)
+        if last.hour < 22:
+            continue
+        end = datetime.datetime(day.year, day.month, day.day, 23, 55)
+        if last >= end:
+            continue
+        src = last.strftime("%Y-%m-%d_%H:%M")
+        cur = last + STEP
+        while cur <= end and (cur - last) <= MAXGAP:
+            clone(src, cur.strftime("%Y-%m-%d_%H:%M"))
+            cur += STEP
 
 
 def merge(old, new):
@@ -109,7 +135,6 @@ def main():
                 p.write_text(old, encoding="utf-8")
         return
     body, kept_n, dropped = merge(old, new)
-    # Refuse wipe: merged must not collapse except 36h trim
     if old_n and kept_n == 0:
         print("refuse write: merged empty, old", old_n)
         sys.exit(1)

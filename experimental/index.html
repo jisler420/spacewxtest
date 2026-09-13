@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.41</div>
+  <div class="pagefoot">V00.14.42</div>
 </div>
 <script>
 (function(){
@@ -1167,22 +1167,49 @@ function sizeGlobe(){
   try{ globeCtl.width(w); globeCtl.height(h); }catch(e){}
 }
 function viewPathData(){
-  const paths=[];
-  function add(arr){
-    let run=[];
-    function flush(){
-      if(run.length>=3) paths.push({points: run.map(function(pt){ return [pt.lat, pt.lon, 0.014]; })});
-      run=[];
-    }
+  function closedRing(arr, south){
+    const step=2, n=Math.round(360/step);
+    const bins=new Array(n);
     (arr||[]).forEach(function(pt){
-      if(!pt||!isFinite(pt.lat)){ flush(); return; }
-      if(run.length && lonGap(pt.lon, run[run.length-1].lon)>30) flush();
-      run.push(pt);
+      if(!pt||!isFinite(pt.lat)) return;
+      const i=((Math.round((lonNorm(pt.lon)+180)/step)%n)+n)%n;
+      bins[i]=pt.lat;
     });
-    flush();
+    const kp=currentKpView();
+    for(let i=0;i<n;i++){
+      if(isFinite(bins[i])) continue;
+      let p=-1, nx=-1;
+      for(let d=1;d<n;d++){
+        if(p<0 && isFinite(bins[(i-d+n)%n])) p=d;
+        if(nx<0 && isFinite(bins[(i+d)%n])) nx=d;
+        if(p>0 && nx>0) break;
+      }
+      if(p>0 && nx>0){
+        bins[i]=bins[(i-p+n)%n]+(bins[(i+nx)%n]-bins[(i-p+n)%n])*(p/(p+nx));
+      }else{
+        const lon=-180+i*step;
+        bins[i]=geoLatForMlat((south?-1:1)*viewMlat(kp), lon);
+      }
+    }
+    const sm=new Array(n);
+    for(let i=0;i<n;i++){
+      let s=0;
+      for(let k=-4;k<=4;k++) s+=bins[(i+k+n)%n];
+      sm[i]=s/9;
+    }
+    const pts=[];
+    for(let i=0;i<n;i++) pts.push([sm[i], -180+i*step, 0.016]);
+    pts.push(pts[0]);
+    return pts;
   }
-  add(viewLineN); add(viewLineS);
-  return paths;
+  const n=closedRing(viewLineN, false);
+  const s=closedRing(viewLineS, true);
+  return [
+    {points:n, kind:"halo"},
+    {points:s, kind:"halo"},
+    {points:n, kind:"dash"},
+    {points:s, kind:"dash"}
+  ];
 }
 function paintGlobeHeat(){
   globeHeat=ovationHeatPoints(ovationCoords);
@@ -1198,10 +1225,10 @@ function paintGlobeHeat(){
       .pathPointLat(function(p){ return p[0]; })
       .pathPointLng(function(p){ return p[1]; })
       .pathPointAlt(function(p){ return p[2]; })
-      .pathColor(function(){ return "rgba(248,250,252,0.92)"; })
-      .pathStroke(0.55)
-      .pathDashLength(0.35)
-      .pathDashGap(0.22)
+      .pathColor(function(d){ return d.kind==="halo"?"rgba(255,255,255,0.22)":"rgba(248,250,252,0.95)"; })
+      .pathStroke(function(d){ return d.kind==="halo"?1.05:0.42; })
+      .pathDashLength(function(d){ return d.kind==="halo"?0:0.045; })
+      .pathDashGap(function(d){ return d.kind==="halo"?0:0.032; })
       .pathTransitionDuration(0);
   }catch(e){}
 }

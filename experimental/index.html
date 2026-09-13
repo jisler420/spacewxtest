@@ -157,7 +157,7 @@ th:first-child,td:first-child{text-align:left}
       </div>
       <div class="when" id="tKp1m">—</div>
     </div>
-    <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">Horizon view line · this location</div></div>
+    <div class="kpi"><span>Aurora visibility</span><b id="vAurora">-</b><div class="when" id="tAurora">—</div><div class="muted">At this location · OVATION</div></div>
     <div class="kpi">
       <span>Disturbance Storm Time Index</span>
       <div class="dstpair">
@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.42</div>
+  <div class="pagefoot">V00.14.43</div>
 </div>
 <script>
 (function(){
@@ -1093,11 +1093,32 @@ function viewPctAt(lat, lon){
   if(lat>=view) return 0;
   return Math.max(0, Math.min(100, 100*(view-lat)/Math.max(1, view-peak)));
 }
+function ovationAt(lat, lon){
+  const coords=ovationCoords;
+  if(!Array.isArray(coords)||!coords.length) return NaN;
+  let L=lonNorm(lon); if(L<0) L+=360;
+  const wantLon=((Math.round(L)%360)+360)%360;
+  const wantLat=Math.max(-90, Math.min(90, Math.round(Number(lat))));
+  let near=NaN, nearD=1e9;
+  for(let i=0;i<coords.length;i++){
+    const p=coords[i];
+    if(!p||p.length<3) continue;
+    let pl=Number(p[0]); if(pl>=360) pl-=360; if(pl<0) pl+=360;
+    const plat=Number(p[1]);
+    if(Math.round(pl)%360===wantLon && Math.round(plat)===wantLat) return Math.max(0, Number(p[2])||0);
+    const d=Math.abs(plat-wantLat)+lonGap(pl, wantLon);
+    if(d<nearD){ nearD=d; near=Number(p[2]); }
+  }
+  return isFinite(near)?Math.max(0, near):NaN;
+}
 function updateAuroraView(){
   if(!vAurora) return;
-  const pct=viewPctAt(cfg.lat, cfg.lon);
+  const pct=ovationAt(cfg.lat, cfg.lon);
+  if(!isFinite(pct)) return;
   vAurora.textContent=Math.round(pct)+"%";
   tone(vAurora,"pct",pct);
+  const pin=document.getElementById("globePinPct");
+  if(pin) pin.textContent=Math.round(pct)+"%";
   try{ if(mapMode!=="globe") drawEarth(); }catch(e){}
   try{ paintGlobeHeat(); }catch(e){}
 }
@@ -1259,9 +1280,16 @@ function startGlobe(){
     globeCtl.pointOfView({lat:lat, lng:lng, altitude:1.85}, 0);
     globeCtl.htmlElementsData([{lat:Number(cfg.lat)||43.55, lng:Number(cfg.lon)||-96.73}])
       .htmlElement(function(){
+        const wrap=document.createElement("div");
+        wrap.style.cssText="text-align:center;pointer-events:none;transform:translate(-50%,-12px)";
         const d=document.createElement("div");
-        d.style.cssText="width:10px;height:10px;border-radius:50%;background:#fb923c;border:1px solid #fff7ed;pointer-events:none";
-        return d;
+        d.style.cssText="width:10px;height:10px;border-radius:50%;background:#5eead4;border:1px solid #ecfeff;margin:0 auto";
+        const s=document.createElement("div");
+        s.id="globePinPct";
+        s.style.cssText="margin-top:4px;padding:1px 6px;border:1px solid #5eead4;background:#070b12;color:#eef3ff;font-size:11px;border-radius:4px;font-variant-numeric:tabular-nums";
+        s.textContent="—";
+        wrap.appendChild(d); wrap.appendChild(s);
+        return wrap;
       });
     sizeGlobe();
     sunLight();

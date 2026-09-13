@@ -41,6 +41,10 @@ header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-conte
 .short{display:none}
 .maprow{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);gap:12px;align-items:stretch;margin-bottom:12px}
 .mapbox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#000}
+.mapbox.mode-globe{aspect-ratio:1/1;max-height:min(72vh,640px);margin:0 auto}
+#globebox{display:none;position:absolute;inset:0;background:#070b12}
+.mapbox.mode-globe #earth{visibility:hidden}
+.mapbox.mode-globe #globebox{display:block}
 .maptools{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
 .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{background:transparent;color:var(--muted);border:0;padding:5px 12px;font:11px/1 inherit;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
@@ -184,9 +188,16 @@ th:first-child,td:first-child{text-align:left}
   </div>
   <div class="maprow">
     <div>
-      <div class="mapbox" id="mapbox"><canvas id="earth"></canvas></div>
+      <div class="mapbox" id="mapbox">
+        <canvas id="earth"></canvas>
+        <div id="globebox"></div>
+      </div>
       <div class="maptools">
         <div class="muted" id="mapStatus">equirectangular Earth · poles + OVATION</div>
+        <div class="seg" role="group" aria-label="Map mode">
+          <button type="button" id="btnFlat">Flat</button>
+          <button type="button" id="btnGlobe">3D</button>
+        </div>
       </div>
     </div>
     <div class="card">
@@ -218,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.37</div>
+  <div class="pagefoot">V00.14.40</div>
 </div>
 <script>
 (function(){
@@ -1087,7 +1098,119 @@ function updateAuroraView(){
   const pct=viewPctAt(cfg.lat, cfg.lon);
   vAurora.textContent=Math.round(pct)+"%";
   tone(vAurora,"pct",pct);
-  try{drawEarth()}catch(e){}
+  try{ if(mapMode!=="globe") drawEarth(); }catch(e){}
+  try{ paintGlobeHeat(); }catch(e){}
+}
+let mapMode="flat", globeCtl=null, globeHeat=[];
+try{ const mm=localStorage.getItem("spacewx-mapMode"); if(mm==="globe"||mm==="flat") mapMode=mm; }catch(e){}
+function ovationHeatPoints(coords){
+  const step=2, map=Object.create(null);
+  (coords||[]).forEach(function(p){
+    if(!p||p.length<3||p[2]<8||Math.abs(p[1])<22) return;
+    let lon=p[0]; if(lon>180) lon-=360;
+    const k=Math.round(lon/step)+","+Math.round(p[1]/step);
+    if(!map[k]||p[2]>map[k].weight) map[k]={lat:p[1], lng:lon, weight:p[2]};
+  });
+  const out=[];
+  for(const k in map) out.push(map[k]);
+  return out;
+}
+function starFieldUrl(){
+  const c=document.createElement("canvas"); c.width=1024; c.height=512;
+  const x=c.getContext("2d"); x.fillStyle="#05070c"; x.fillRect(0,0,1024,512);
+  for(let i=0;i<1100;i++){
+    const a=0.15+Math.random()*0.85;
+    x.fillStyle="rgba(230,240,255,"+a+")";
+    const s=Math.random()<0.08?2:1;
+    x.fillRect(Math.random()*1024, Math.random()*512, s, s);
+  }
+  return c.toDataURL();
+}
+function sunLight(){
+  if(!globeCtl) return;
+  const d=new Date();
+  const start=Date.UTC(d.getUTCFullYear(),0,1), day=(d-start)/864e5+1;
+  const decl=-23.44*Math.cos((2*Math.PI/365)*(day+10));
+  const min=d.getUTCHours()*60+d.getUTCMinutes(), lngSun=180-min/4;
+  try{
+    const v=globeCtl.getCoords(decl, lngSun);
+    const lights=globeCtl.lights()||[];
+    let dir=null;
+    for(let i=0;i<lights.length;i++) if(lights[i]&&lights[i].type==="DirectionalLight") dir=lights[i];
+    if(!dir&&lights[1]) dir=lights[1];
+    if(dir&&v) dir.position.set(v.x, v.y, v.z);
+    if(dir) dir.intensity=1.55;
+    if(lights[0]) lights[0].intensity=0.32;
+  }catch(e){}
+}
+function sizeGlobe(){
+  if(!globeCtl) return;
+  const el=document.getElementById("globebox"); if(!el) return;
+  const w=Math.max(280, el.clientWidth), h=Math.max(280, el.clientHeight);
+  try{ globeCtl.width(w); globeCtl.height(h); }catch(e){}
+}
+function paintGlobeHeat(){
+  globeHeat=ovationHeatPoints(ovationCoords);
+  if(!globeCtl) return;
+  try{
+    globeCtl.heatmapsData(globeHeat.length?[globeHeat]:[]);
+  }catch(e){
+    try{ globeCtl.heatmapsData(globeHeat); }catch(e2){}
+  }
+}
+function startGlobe(){
+  if(globeCtl){ sizeGlobe(); sunLight(); paintGlobeHeat(); try{ globeCtl.resumeAnimation(); }catch(e){} return; }
+  if(typeof Globe!=="function") return;
+  const el=document.getElementById("globebox"); if(!el) return;
+  const lat=Math.min(82, Math.max(48, Number(cfg.lat)||55));
+  const lng=Number(cfg.lon)||-96.73;
+  try{
+    globeCtl=Globe({animateIn:false, rendererConfig:{antialias:true, alpha:false, powerPreference:"low-power"}})
+      .globeImageUrl("lib/earth-night.jpg")
+      .backgroundImageUrl(starFieldUrl())
+      .backgroundColor("#070b12")
+      .showAtmosphere(true)
+      .atmosphereColor("#7dd3fc")
+      .atmosphereAltitude(0.12)
+      .heatmapPointLat("lat")
+      .heatmapPointLng("lng")
+      .heatmapPointWeight("weight")
+      .heatmapBaseAltitude(0.001)
+      .heatmapTopAltitude(0.03)
+      .heatmapBandwidth(6)
+      .enablePointerInteraction(true)
+      (el);
+    try{ globeCtl.renderer().setPixelRatio(Math.min(1.35, window.devicePixelRatio||1)); }catch(e){}
+    try{ globeCtl.globeMaterial().shininess=0; }catch(e){}
+    globeCtl.pointOfView({lat:lat, lng:lng, altitude:1.85}, 0);
+    globeCtl.htmlElementsData([{lat:Number(cfg.lat)||43.55, lng:Number(cfg.lon)||-96.73}])
+      .htmlElement(function(){
+        const d=document.createElement("div");
+        d.style.cssText="width:10px;height:10px;border-radius:50%;background:#fb923c;border:1px solid #fff7ed;pointer-events:none";
+        return d;
+      });
+    sizeGlobe();
+    sunLight();
+    paintGlobeHeat();
+  }catch(e){
+    globeCtl=null;
+    mapMode="flat";
+    applyMapMode();
+  }
+}
+function applyMapMode(){
+  const box=document.getElementById("mapbox");
+  const bf=document.getElementById("btnFlat"), bg=document.getElementById("btnGlobe");
+  if(box) box.classList.toggle("mode-globe", mapMode==="globe");
+  if(bf) bf.className=mapMode==="flat"?"on":"";
+  if(bg) bg.className=mapMode==="globe"?"on":"";
+  try{ localStorage.setItem("spacewx-mapMode", mapMode); }catch(e){}
+  if(mapMode==="globe"){
+    startGlobe();
+  }else{
+    if(globeCtl) try{ globeCtl.pauseAnimation(); }catch(e){}
+    try{ drawEarth(); }catch(e){}
+  }
 }
 function drawViewLine(ctx,w,h){
   function strokeRun(run){
@@ -1105,7 +1228,7 @@ function drawViewLine(ctx,w,h){
     function flush(){ if(run.length>=3) fn(run); run=[]; }
     arr.forEach(function(pt){
       if(!pt||!isFinite(pt.lat)){ flush(); return; }
-      if(run.length && lonGap(pt.lon, run[run.length-1].lon)>8) flush();
+      if(run.length && lonGap(pt.lon, run[run.length-1].lon)>30) flush();
       run.push(pt);
     });
     flush();
@@ -1128,6 +1251,7 @@ function drawViewLine(ctx,w,h){
   ctx.restore();
 }
 function drawEarth(){
+  if(mapMode==="globe") return;
   const el=document.getElementById("earth"),box=el&&el.parentElement;if(!el||!box)return;
   const w=Math.max(320,box.clientWidth),h=Math.max(160,box.clientHeight),dpr=Math.min(2,window.devicePixelRatio||1);
   el.width=Math.round(w*dpr);el.height=Math.round(h*dpr);el.style.width=w+"px";el.style.height=h+"px";
@@ -1164,7 +1288,8 @@ function drawEarth(){
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();
 }
 function mapCaption(obs){
-  const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = horizon view line"):"";
+  const mode=mapMode==="globe"?" · 3D curtain":" · white dash = horizon view line";
+  const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+mode):"";
   return ov||"equirectangular Earth · poles + OVATION";
 }
 async function loadAurora(){
@@ -1196,7 +1321,7 @@ function tick(){
     const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
   }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
-  if(min!==tick._termMin){tick._termMin=min; try{ drawEarth(); }catch(e){}}
+  if(min!==tick._termMin){tick._termMin=min; try{ if(mapMode==="globe") sunLight(); else drawEarth(); }catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -1252,6 +1377,22 @@ restoreKp1m();
 refreshKp1m();
 refreshHemi();
 drawEarth();loadImgs();loadEnlil();
+(function(){
+  const bf=document.getElementById("btnFlat"), bg=document.getElementById("btnGlobe");
+  if(bf) bf.onclick=function(){ mapMode="flat"; applyMapMode(); };
+  if(bg) bg.onclick=function(){ mapMode="globe"; applyMapMode(); };
+  document.addEventListener("visibilitychange", function(){
+    if(!globeCtl) return;
+    try{ if(document.hidden||mapMode!=="globe") globeCtl.pauseAnimation(); else globeCtl.resumeAnimation(); }catch(e){}
+  });
+  window.addEventListener("resize", function(){ try{ if(mapMode==="globe") sizeGlobe(); else drawEarth(); }catch(e){} });
+  const s=document.createElement("script");
+  s.src="lib/globe.gl.min.js";
+  s.onload=function(){ applyMapMode(); };
+  s.onerror=function(){ mapMode="flat"; applyMapMode(); };
+  document.head.appendChild(s);
+  applyMapMode();
+})();
 let wxWorker=null, workerOk=false;
 try{
   const wurl=new URL("spacewx-worker.js?v=001431", document.baseURI||location.href);

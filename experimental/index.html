@@ -218,7 +218,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.01</div>
+  <div class="pagefoot">V00.13.02</div>
 </div>
 <script>
 (function(){
@@ -1150,15 +1150,6 @@ function drawEarth(){
     }
     if(y0>=0) ctx.fillRect(x,y0,1,run);
   }
-  ctx.beginPath();
-  for(let lng=-180,i=0;lng<=180;lng+=2,i++){
-    const cosH=Math.cos((lng-lngSun)*rad);
-    let lat=0;
-    if(Math.abs(sinD)>1e-6) lat=Math.atan((-cosD*cosH)/sinD)/rad;
-    const p=xy(lng, Math.max(-89.5, Math.min(89.5, lat)), w, h);
-    if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
-  }
-  ctx.strokeStyle="rgba(226,232,240,0.55)"; ctx.lineWidth=1.2; ctx.stroke();
   if(auroraData){const off=document.createElement("canvas");off.width=auroraData.width;off.height=auroraData.height;off.getContext("2d").putImageData(auroraData,0,0);ctx.save();ctx.imageSmoothingEnabled=true;ctx.globalCompositeOperation="screen";ctx.filter="blur(1.6px)";ctx.drawImage(off,0,0,w,h);ctx.restore()}
   drawViewLine(ctx,w,h);
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();

@@ -8,12 +8,12 @@ const NOAA = {
   dst: "https://services.swpc.noaa.gov/products/kyoto-dst.json",
   dstPred: "https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json",
   hemi: "https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt",
-  hemiSnap: "../data/hemi-archive.txt",
+  hemiSnap: "https://jisler420.github.io/spacewxtest/data/hemi-archive.txt",
   aurora: "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
   sumMag: "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
   sumSpeed: "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
   kp1m: "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
-  kp1mSnap: "../data/kp1m-archive.json",
+  kp1mSnap: "https://jisler420.github.io/spacewxtest/data/kp1m-archive.json",
 };
 
 const bodyCache = Object.create(null);

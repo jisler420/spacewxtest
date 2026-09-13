@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.40</div>
+  <div class="pagefoot">V00.14.41</div>
 </div>
 <script>
 (function(){
@@ -1101,7 +1101,7 @@ function updateAuroraView(){
   try{ if(mapMode!=="globe") drawEarth(); }catch(e){}
   try{ paintGlobeHeat(); }catch(e){}
 }
-let mapMode="flat", globeCtl=null, globeHeat=[];
+let mapMode="flat", globeCtl=null, globeHeat=[], globeGrayUrl="";
 try{ const mm=localStorage.getItem("spacewx-mapMode"); if(mm==="globe"||mm==="flat") mapMode=mm; }catch(e){}
 function ovationHeatPoints(coords){
   const step=2, map=Object.create(null);
@@ -1114,6 +1114,23 @@ function ovationHeatPoints(coords){
   const out=[];
   for(const k in map) out.push(map[k]);
   return out;
+}
+function grayGlobeUrl(){
+  const w=2048, h=1024;
+  const c=document.createElement("canvas"); c.width=w; c.height=h;
+  const x=c.getContext("2d");
+  x.fillStyle="#1c2128";
+  x.fillRect(0,0,w,h);
+  if(baseImg&&baseImg.complete&&baseImg.naturalWidth){
+    const y0=h*(90-85)/180, y1=h*(90+85)/180;
+    x.drawImage(baseImg, 0, y0, w, Math.max(1, y1-y0));
+  }
+  globeGrayUrl=c.toDataURL("image/jpeg", 0.82);
+  return globeGrayUrl;
+}
+function applyGlobeTexture(){
+  if(!globeCtl) return;
+  try{ globeCtl.globeImageUrl(grayGlobeUrl()); }catch(e){}
 }
 function starFieldUrl(){
   const c=document.createElement("canvas"); c.width=1024; c.height=512;
@@ -1139,8 +1156,8 @@ function sunLight(){
     for(let i=0;i<lights.length;i++) if(lights[i]&&lights[i].type==="DirectionalLight") dir=lights[i];
     if(!dir&&lights[1]) dir=lights[1];
     if(dir&&v) dir.position.set(v.x, v.y, v.z);
-    if(dir) dir.intensity=1.55;
-    if(lights[0]) lights[0].intensity=0.32;
+    if(dir) dir.intensity=1.35;
+    if(lights[0]) lights[0].intensity=0.45;
   }catch(e){}
 }
 function sizeGlobe(){
@@ -1148,6 +1165,24 @@ function sizeGlobe(){
   const el=document.getElementById("globebox"); if(!el) return;
   const w=Math.max(280, el.clientWidth), h=Math.max(280, el.clientHeight);
   try{ globeCtl.width(w); globeCtl.height(h); }catch(e){}
+}
+function viewPathData(){
+  const paths=[];
+  function add(arr){
+    let run=[];
+    function flush(){
+      if(run.length>=3) paths.push({points: run.map(function(pt){ return [pt.lat, pt.lon, 0.014]; })});
+      run=[];
+    }
+    (arr||[]).forEach(function(pt){
+      if(!pt||!isFinite(pt.lat)){ flush(); return; }
+      if(run.length && lonGap(pt.lon, run[run.length-1].lon)>30) flush();
+      run.push(pt);
+    });
+    flush();
+  }
+  add(viewLineN); add(viewLineS);
+  return paths;
 }
 function paintGlobeHeat(){
   globeHeat=ovationHeatPoints(ovationCoords);
@@ -1157,21 +1192,33 @@ function paintGlobeHeat(){
   }catch(e){
     try{ globeCtl.heatmapsData(globeHeat); }catch(e2){}
   }
+  try{
+    globeCtl.pathsData(viewPathData())
+      .pathPoints("points")
+      .pathPointLat(function(p){ return p[0]; })
+      .pathPointLng(function(p){ return p[1]; })
+      .pathPointAlt(function(p){ return p[2]; })
+      .pathColor(function(){ return "rgba(248,250,252,0.92)"; })
+      .pathStroke(0.55)
+      .pathDashLength(0.35)
+      .pathDashGap(0.22)
+      .pathTransitionDuration(0);
+  }catch(e){}
 }
 function startGlobe(){
-  if(globeCtl){ sizeGlobe(); sunLight(); paintGlobeHeat(); try{ globeCtl.resumeAnimation(); }catch(e){} return; }
+  if(globeCtl){ sizeGlobe(); sunLight(); paintGlobeHeat(); applyGlobeTexture(); try{ globeCtl.resumeAnimation(); }catch(e){} return; }
   if(typeof Globe!=="function") return;
   const el=document.getElementById("globebox"); if(!el) return;
   const lat=Math.min(82, Math.max(48, Number(cfg.lat)||55));
   const lng=Number(cfg.lon)||-96.73;
   try{
     globeCtl=Globe({animateIn:false, rendererConfig:{antialias:true, alpha:false, powerPreference:"low-power"}})
-      .globeImageUrl("lib/earth-night.jpg")
+      .globeImageUrl(grayGlobeUrl())
       .backgroundImageUrl(starFieldUrl())
       .backgroundColor("#070b12")
       .showAtmosphere(true)
-      .atmosphereColor("#7dd3fc")
-      .atmosphereAltitude(0.12)
+      .atmosphereColor("#64748b")
+      .atmosphereAltitude(0.1)
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
@@ -1181,7 +1228,7 @@ function startGlobe(){
       .enablePointerInteraction(true)
       (el);
     try{ globeCtl.renderer().setPixelRatio(Math.min(1.35, window.devicePixelRatio||1)); }catch(e){}
-    try{ globeCtl.globeMaterial().shininess=0; }catch(e){}
+    try{ globeCtl.globeMaterial().shininess=0; globeCtl.globeMaterial().specular.set("#000000"); }catch(e){}
     globeCtl.pointOfView({lat:lat, lng:lng, altitude:1.85}, 0);
     globeCtl.htmlElementsData([{lat:Number(cfg.lat)||43.55, lng:Number(cfg.lon)||-96.73}])
       .htmlElement(function(){
@@ -1288,7 +1335,7 @@ function drawEarth(){
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();
 }
 function mapCaption(obs){
-  const mode=mapMode==="globe"?" · 3D curtain":" · white dash = horizon view line";
+  const mode=mapMode==="globe"?" · 3D curtain · white dash = view line":" · white dash = horizon view line";
   const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+mode):"";
   return ov||"equirectangular Earth · poles + OVATION";
 }
@@ -1304,7 +1351,7 @@ async function loadAurora(){
   mapStatus.textContent=mapCaption(obs);
   updateAuroraView();
 }
-(function(){const img=new Image();img.crossOrigin="anonymous";img.onload=function(){baseImg=img;drawEarth()};img.src=BASE})();
+(function(){const img=new Image();img.crossOrigin="anonymous";img.onload=function(){baseImg=img;try{drawEarth()}catch(e){};try{applyGlobeTexture()}catch(e){}};img.src=BASE})();
 
 const ENLIL_DIR="https://services.swpc.noaa.gov/images/animations/enlil/";
 let frames=[],fi=0,timer=null;

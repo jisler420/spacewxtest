@@ -218,7 +218,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.36</div>
+  <div class="pagefoot">V00.13.37</div>
 </div>
 <script>
 (function(){
@@ -984,7 +984,7 @@ function viewOffsetDeg(p){
 function lonNorm(lon){ let x=Number(lon); if(x>180) x-=360; if(x<=-180) x+=360; return x; }
 function lonGap(a,b){ let d=Math.abs(a-b); if(d>180) d=360-d; return d; }
 function buildViewLines(coords){
-  const step=3, n=Math.round(360/step), THR=10, MAXGAP=4;
+  const step=3, n=Math.round(360/step), THR=8, MAXGAP=n;
   const N=new Array(n), S=new Array(n);
   (coords||[]).forEach(function(p){
     if(!p||p.length<3||p[2]<THR||Math.abs(p[1])<22) return;
@@ -1007,7 +1007,7 @@ function buildViewLines(coords){
         if(nx<0 && arr[(i+d)%n]&&arr[(i+d)%n].real) nx=d;
         if(p>0 && nx>0) break;
       }
-      if(p<0||nx<0||p+nx>MAXGAP+1) continue;
+      if(p<0||nx<0) continue;
       const a=arr[(i-p+n)%n], b=arr[(i+nx)%n], t=p/(p+nx);
       arr[i]={edge:a.edge+(b.edge-a.edge)*t, p:a.p+(b.p-a.p)*t, real:0};
     }

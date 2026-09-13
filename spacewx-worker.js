@@ -8,11 +8,12 @@ const NOAA = {
   dst: "https://services.swpc.noaa.gov/products/kyoto-dst.json",
   dstPred: "https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json",
   hemi: "https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt",
-  hemiSnap: "./data/hemi-archive.txt",
+  hemiSnap: "https://jisler420.github.io/spacewxtest/data/hemi-archive.txt",
   aurora: "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
   sumMag: "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
   sumSpeed: "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
   kp1m: "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
+  kp1mSnap: "https://jisler420.github.io/spacewxtest/data/kp1m-archive.json",
 };
 
 const bodyCache = Object.create(null);
@@ -212,6 +213,11 @@ async function ovationIfNew(signal) {
   return settled(NOAA.aurora, signal);
 }
 
+function hemiNeedCache() {
+  const d = new Date(), h = d.getUTCHours(), m = d.getUTCMinutes();
+  return h < 6 || (h === 23 && m >= 50);
+}
+
 async function collect(kind, signal) {
   const now = new Date();
   const stop = isoH(new Date(now.getTime() + 3600000));
@@ -221,11 +227,12 @@ async function collect(kind, signal) {
   const wantSlow = kind === "slow" || kind === "all";
 
   if (wantFast) {
-    const [mag, plasma, dstGot, kp1mGot] = await Promise.all([
+    const [mag, plasma, dstGot, kp1mGot, kp1mSnapGot] = await Promise.all([
       hapi("solar_wind_mag_rt", "bt,bx_gsm,by_gsm,bz_gsm", hapiStart(series.mag), stop, signal),
       hapi("solar_wind_plasma_rt", "density,speed,temperature", hapiStart(series.plasma), stop, signal),
       settled(NOAA.dst, signal),
       settled(NOAA.kp1m, signal),
+      settled(NOAA.kp1mSnap, signal),
     ]);
     series.mag = mergeRows(series.mag, mag);
     series.plasma = mergeRows(series.plasma, plasma);
@@ -247,15 +254,24 @@ async function collect(kind, signal) {
     if (putSeries(out, "mag", series.mag)) changed = true;
     if (putSeries(out, "plasma", series.plasma)) changed = true;
     if (dst && putIfChanged(out, "dst", dst.data)) changed = true;
-    if (kp1mGot && kp1mGot.data) {
-      const rows = Array.isArray(kp1mGot.data) ? kp1mGot.data : [];
-      const cut = Date.now() - 35 * 60000;
-      const recent = [];
-      rows.forEach(function (r) {
+    {
+      function kpRows(data) {
+        const raw = Array.isArray(data) ? data : (data && (data.rows || data.data)) || [];
+        return Array.isArray(raw) ? raw : [];
+      }
+      const merged = kpRows(kp1mSnapGot && kp1mSnapGot.data).concat(kpRows(kp1mGot && kp1mGot.data));
+      let tmax = 0;
+      const by = Object.create(null);
+      merged.forEach(function (r) {
         const t = parseT(r && r.time_tag);
         const k = Number(r && (r.estimated_kp != null ? r.estimated_kp : r.kp));
-        if (Number.isFinite(t) && t >= cut && Number.isFinite(k)) recent.push({ time_tag: r.time_tag, estimated_kp: k, kp: r.kp });
+        if (Number.isFinite(t) && Number.isFinite(k)) {
+          by[t] = { time_tag: r.time_tag, estimated_kp: k, kp: r.kp };
+          if (t > tmax) tmax = t;
+        }
       });
+      const cut = Math.max(Date.now(), tmax) - 90 * 60000;
+      const recent = Object.keys(by).map(Number).filter(function (t) { return t >= cut; }).sort(function (a, b) { return a - b; }).map(function (t) { return by[t]; });
       if (recent.length && putIfChanged(out, "kp1m", recent)) changed = true;
     }
   }
@@ -270,8 +286,8 @@ async function collect(kind, signal) {
       settled(NOAA.day, signal),
       settled(NOAA.dstPred, signal),
       settled(NOAA.hemi, signal),
-      settled(NOAA.hemiSnap, signal),
-      settled("./hp30.txt", signal),
+      hemiNeedCache() ? settled(NOAA.hemiSnap, signal) : Promise.resolve(null),
+      settled("hp30.txt", signal),
       ovationIfNew(signal),
     ]);
     series.enlil = mergeRows(series.enlil, enlil);
@@ -314,7 +330,7 @@ async function collect(kind, signal) {
     dst: !!(bodyCache[NOAA.dst] || src.dst),
     dstPred: !!bodyCache[NOAA.dstPred],
     hemi: !!bodyCache[NOAA.hemi] || !!bodyCache[NOAA.hemiSnap],
-    hp: series.hp.length > 0 || !!bodyCache["./hp30.txt"],
+    hp: series.hp.length > 0 || !!bodyCache["hp30.txt"],
     kp: !!(bodyCache[NOAA.kp] || src.kp),
     scales: !!bodyCache[NOAA.scales],
     forecast: !!(bodyCache[NOAA.kf] || bodyCache[NOAA.day]),

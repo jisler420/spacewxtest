@@ -41,11 +41,6 @@ header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-conte
 .short{display:none}
 .maprow{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);gap:12px;align-items:stretch;margin-bottom:12px}
 .mapbox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#000}
-.globebox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#070b12;touch-action:none;display:none}
-body.mode-flat .globebox{display:none}
-body.mode-flat .mapbox{display:block}
-body.mode-globe .mapbox{display:none}
-body.mode-globe .globebox{display:block}
 .maptools{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
 .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{background:transparent;color:var(--muted);border:0;padding:5px 12px;font:11px/1 inherit;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
@@ -124,7 +119,7 @@ th:first-child,td:first-child{text-align:left}
   .kpis-4{grid-template-columns:repeat(2,minmax(0,1fr))}
   .kpis-3{grid-template-columns:1fr}
   .player{flex-wrap:wrap}
-  .mapbox,.globebox{min-height:180px}
+  .mapbox{min-height:180px}
   #swPlot{height:300px}
   .hemiwrap{min-height:200px}
   header{row-gap:4px}
@@ -189,14 +184,9 @@ th:first-child,td:first-child{text-align:left}
   </div>
   <div class="maprow">
     <div>
-      <div class="globebox" id="globeBox"></div>
       <div class="mapbox" id="mapbox"><canvas id="earth"></canvas></div>
       <div class="maptools">
         <div class="muted" id="mapStatus">equirectangular Earth · poles + OVATION</div>
-        <div class="seg" id="mapModeSeg">
-          <button type="button" data-mode="flat" id="btnFlat" class="on">Flat</button>
-          <button type="button" data-mode="globe" id="btnGlobe">3D</button>
-        </div>
       </div>
     </div>
     <div class="card">
@@ -228,7 +218,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.20</div>
+  <div class="pagefoot">V00.13.37</div>
 </div>
 <script>
 (function(){
@@ -293,6 +283,16 @@ function kpGCell(k,scale){
 let hemiSeries=[];
 let hemiPolledAt=0;
 let kp1mBuf=[];
+const KP1M_KEY="spacewx-kp1m";
+function persistKp1m(){
+  try{ localStorage.setItem(KP1M_KEY, JSON.stringify((kp1mBuf||[]).map(function(r){return {time_tag:r.time_tag,estimated_kp:r.estimated_kp,kp:r.kp}}))); }catch(e){}
+}
+function restoreKp1m(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(KP1M_KEY)||"[]");
+    if(Array.isArray(raw)&&raw.length) drawKp1m(raw);
+  }catch(e){}
+}
 function utcHms(ms){
   const d=new Date(ms);
   if(!isFinite(ms)||!isFinite(d.getTime())) return "—";
@@ -367,8 +367,12 @@ function parseHemiSeries(txt){
   });
   return out;
 }
-const HEMI_KEEP=36*3600000;
+const HEMI_KEEP=8*3600000;
 const HEMI_LS="spacewx-hemi";
+function hemiNeedCache(){
+  const d=new Date(), h=d.getUTCHours(), m=d.getUTCMinutes();
+  return h<6 || (h===23 && m>=50);
+}
 function mergeHemi(rows){
   const by=Object.create(null);
   (hemiSeries||[]).concat(rows||[]).forEach(function(r){
@@ -388,6 +392,16 @@ function mergeHemi(rows){
     if(!by[t50] && by[t45]) copySlot(t45, t50);
     if(!by[t55] && (by[t50]||by[t45])) copySlot(by[t50]?t50:t45, t55);
   });
+  const keys=Object.keys(by).map(Number).sort(function(a,b){return a-b});
+  const STEP=5*60000, MAXGAP=90*60000;
+  for(let i=0;i<keys.length-1;i++){
+    const a=keys[i], b=keys[i+1], gap=b-a;
+    if(gap<=STEP+2000 || gap>MAXGAP) continue;
+    const src=by[a];
+    for(let t=a+STEP; t<b-2000; t+=STEP){
+      if(!by[t]) by[t]={obs:t, fcst:(src.fcst||src.obs)+(t-src.obs), n:src.n, s:src.s};
+    }
+  }
   const cut=Date.now()-HEMI_KEEP;
   hemiSeries=Object.keys(by).map(Number).sort(function(a,b){return a-b}).map(function(k){return by[k]}).filter(function(r){return r.obs>=cut});
   try{localStorage.setItem(HEMI_LS, JSON.stringify(hemiSeries))}catch(e){}
@@ -535,18 +549,33 @@ function applyHemi(hemi, ts){
   drawHemiPlot();
 }
 async function refreshHemi(){
+  const liveUrl="https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt";
+  const live=await settled(liveUrl);
+  if(live) applyHemi(live);
+  const t0=Date.now()-6*3600000;
+  const hole=!hemiSeries.length || hemiSeries[0].obs>t0+15*60000;
+  if(hemiNeedCache() || hole){
+    const base=document.baseURI||location.href;
+    const snaps=[
+      new URL("data/hemi-archive.txt", base).href,
+      "https://jisler420.github.io/spacewxtest/data/hemi-archive.txt",
+      "https://jisler420.github.io/spacewxnightly/data/hemi-archive.txt"
+    ];
+    const got=await Promise.all(snaps.map(function(u){return settled(u)}));
+    got.forEach(function(t){ if(t) applyHemi(t); });
+    if(live) applyHemi(live);
+  }
+  try{drawHemiPlot()}catch(e){}
+}
+async function refreshKp1m(){
   const base=document.baseURI||location.href;
   const urls=[
-    "https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt",
-    new URL("./data/hemi-archive.txt", base).href,
-    "https://jisler420.github.io/spacewxtest/data/hemi-archive.txt",
-    "https://jisler420.github.io/spacewxnightly/data/hemi-archive.txt"
+    new URL("data/kp1m-archive.json", base).href,
+    "https://jisler420.github.io/spacewxtest/data/kp1m-archive.json",
+    "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
   ];
   const got=await Promise.all(urls.map(function(u){return settled(u)}));
-  const live=got[0];
-  for(let i=1;i<got.length;i++) if(got[i]) applyHemi(got[i]);
-  if(live) applyHemi(live);
-  else try{drawHemiPlot()}catch(e){}
+  got.forEach(function(d){ if(d) drawKp1m(d); });
 }
 function parseNoaa3DayText(txt){
   const lines=String(txt||"").split(/\n/);
@@ -749,25 +778,35 @@ function drawKp1m(row){
     if(!r)return;
     const t=parseT(r.time_tag);
     const k=Number(r.estimated_kp!=null?r.estimated_kp:r.kp);
-    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,t:t,estimated_kp:k};
+    if(isFinite(t)&&isFinite(k)) by[t]={time_tag:r.time_tag,t:t,estimated_kp:k,kp:r.kp};
   });
   const times=Object.keys(by).map(Number).sort(function(a,b){return a-b});
   const latestT=times.length?times[times.length-1]:0;
-  const cut=latestT-30*60000;
+  const KEEP=90*60000;
+  const cut=latestT-KEEP;
   kp1mBuf=times.filter(function(t){return t>=cut}).map(function(t){return by[t]});
-  const latest=kp1mBuf.length?kp1mBuf[kp1mBuf.length-1]:null;
+  function isKpFill(r){
+    if(!r||!isFinite(r.estimated_kp)) return true;
+    const code=String(r.kp||"");
+    return r.estimated_kp===0 && (code===""||code==="0Z"||code==="0");
+  }
+  let used=kp1mBuf.slice();
+  while(used.length && isKpFill(used[used.length-1])) used.pop();
+  if(!used.length) used=kp1mBuf.slice();
+  const latest=used.length?used[used.length-1]:null;
   if(!latest) return;
+  const avgT=latest.t;
   stampWhen("tKp1m", latest.time_tag, "kp1m");
   function lastN(n){
-    const slice=kp1mBuf.slice(-n);
+    const slice=used.slice(-n);
     if(!slice.length) return NaN;
     let s=0; slice.forEach(function(r){s+=r.estimated_kp});
     return s/slice.length;
   }
   function avgSince(ms){
-    const t0=latestT-ms;
+    const t0=avgT-ms;
     let s=0,n=0;
-    kp1mBuf.forEach(function(r){ if(r.t>=t0){s+=r.estimated_kp;n++} });
+    used.forEach(function(r){ if(r.t>=t0){s+=r.estimated_kp;n++} });
     return n?s/n:NaN;
   }
   const a5=lastN(5), a15=avgSince(15*60000), a30=avgSince(30*60000);
@@ -776,6 +815,7 @@ function drawKp1m(row){
   if(el15&&isFinite(a15)){ el15.textContent=a15.toFixed(2); tone(el15,"kp",a15); }
   const el30=document.getElementById("vKp30");
   if(el30&&isFinite(a30)){ el30.textContent=a30.toFixed(2); tone(el30,"kp",a30); }
+  persistKp1m();
   updateAuroraView();
 }
 function parseGfzHp30(txt){
@@ -842,7 +882,7 @@ async function loadWindImf(){
   markUpdated();
 }
 async function loadWx(){
-  const [kp,sc,kf,dayTxt,dst,dstPred,hemi,hemiSnap,kp1m]=await Promise.all([
+  const [kp,sc,kf,dayTxt,dst,dstPred,hemi,hemiSnap,kp1mSnap,kp1m]=await Promise.all([
     settled("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"),
     settled("https://services.swpc.noaa.gov/products/noaa-scales.json"),
     settled("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"),
@@ -850,7 +890,8 @@ async function loadWx(){
     settled("https://services.swpc.noaa.gov/products/kyoto-dst.json"),
     settled("https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json"),
     settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt"),
-    settled("./data/hemi-archive.txt"),
+    settled("data/hemi-archive.txt"),
+    settled("data/kp1m-archive.json"),
     settled("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json")
   ]);
   const k=Number((newestByTime(kp)||last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(newestByTime(kp)||last(kp)||{}).time_tag,"kp")}
@@ -862,11 +903,12 @@ async function loadWx(){
   if(Array.isArray(dst)||Array.isArray(dstPred)) drawDst();
   if(hemiSnap) applyHemi(hemiSnap);
   if(hemi) applyHemi(hemi);
+  if(kp1mSnap) drawKp1m(kp1mSnap);
   if(kp1m) drawKp1m(kp1m);
   drawSw();
 }
 async function loadHp30(){
-  const txt=await settled("./hp30.txt");
+  const txt=await settled("../hp30.txt");
   if(!txt)return;
   const rows=parseGfzHp30(txt);
   if(rows.length){cache.hp30=rows;drawHp30()}
@@ -890,7 +932,7 @@ function loadImgs(){
 }
 
 const BASE="https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/export?bbox=-180,-85,180,85&bboxSR=4326&imageSR=4326&size=1600,756&format=png&f=image";
-let baseImg=null,auroraData=null,ovationCoords=null,globeCtl=null,mapMode="flat";
+let baseImg=null,auroraData=null,ovationCoords=null;
 function xy(lon,lat,w,h){const xlon=lon>180?lon-360:lon;return [((xlon+180)/360)*w,((90-lat)/180)*h]}
 function ovationColor(p){if(p<8)return [0,0,0,0];const t=Math.min(1,(p-8)/70);if(t<0.45){const u=t/0.45;return [20,Math.round(140+u*80),30,Math.round(50+u*90)]}if(t<0.75){const u=(t-0.45)/0.3;return [Math.round(40+u*180),Math.round(220-u*20),Math.round(20+u*20),Math.round(140+u*40)]}const u=(t-0.75)/0.25;return [Math.round(220+u*35),Math.round(230+u*25),Math.round(80+u*140),210]}
 function paintOvation(coords){const gw=360,gh=181,grid=new Float32Array(gw*gh);for(let i=0;i<coords.length;i++){const p=coords[i];if(!p||p.length<3||p[2]<8||Math.abs(p[1])<22)continue;let lon=p[0];if(lon>180)lon-=360;const ix=Math.max(0,Math.min(gw-1,Math.round(((lon+180)/360)*(gw-1))));const iy=Math.max(0,Math.min(gh-1,Math.round(((90-p[1])/180)*(gh-1))));const j=iy*gw+ix;if(p[2]>grid[j])grid[j]=p[2]}const img=new ImageData(gw,gh);for(let i=0;i<grid.length;i++){const c=ovationColor(grid[i]),o=i*4;img.data[o]=c[0];img.data[o+1]=c[1];img.data[o+2]=c[2];img.data[o+3]=c[3]}return img}
@@ -898,8 +940,8 @@ const OVAL_MLAT=[67.5,66.1,64.4,62.4,60.4,58.1,55.7,53.1,50.1,46.5];
 let viewLineN=[], viewLineS=[], peakLineN=[], peakLineS=[];
 function currentKpView(){
   function num(id){const el=document.getElementById(id); if(!el) return NaN; return parseFloat(String(el.textContent||"").replace(/[^\d.+-]/g,""));}
-  const hp=num("vHp30"), k5=num("vKp5"), k15=num("vKp15"), k3=num("vKp");
-  const cands=[hp,k5,k15,k3].filter(isFinite);
+  const k5=num("vKp5"), k15=num("vKp15"), k3=num("vKp");
+  const cands=[k5,k15,k3].filter(isFinite);
   if(!cands.length) return 2;
   return Math.max.apply(null, cands);
 }
@@ -913,7 +955,7 @@ function lerpMlat(table, kp){
 function extraViewDeg(kp){
   if(!isFinite(kp)) kp=2;
   kp=Math.max(0,Math.min(9,kp));
-  return 4 + kp * (10/9);
+  return viewOffsetDeg((kp/9)*70);
 }
 function ovalMlat(kp){ return lerpMlat(OVAL_MLAT, kp); }
 function viewMlat(kp){ return ovalMlat(kp) - extraViewDeg(kp); }
@@ -933,53 +975,71 @@ function geoLatForMlat(want, lon){
   return (lo+hi)/2;
 }
 function viewOffsetDeg(p){
-  const t=Math.max(0, Math.min(1, (Number(p)||0)/80));
-  return 11 + 5*t;
+  const t=Math.max(0, Math.min(1, (Number(p)||0)/70));
+  const h=220+180*Math.pow(t,0.7);
+  const RE=6371, elev=10*Math.PI/180;
+  const arg=Math.min(1, Math.max(-1, (RE/(RE+h))*Math.cos(elev)));
+  return (Math.acos(arg)-elev)*180/Math.PI;
 }
 function lonNorm(lon){ let x=Number(lon); if(x>180) x-=360; if(x<=-180) x+=360; return x; }
+function lonGap(a,b){ let d=Math.abs(a-b); if(d>180) d=360-d; return d; }
 function buildViewLines(coords){
-  const step=2, n=Math.round(360/step);
+  const step=3, n=Math.round(360/step), THR=8, MAXGAP=n;
   const N=new Array(n), S=new Array(n);
   (coords||[]).forEach(function(p){
-    if(!p||p.length<3||p[2]<8||Math.abs(p[1])<22) return;
+    if(!p||p.length<3||p[2]<THR||Math.abs(p[1])<22) return;
     const lon=lonNorm(p[0]), lat=p[1], v=p[2];
     const i=Math.max(0, Math.min(n-1, Math.floor((lon+180)/step)));
     if(lat>0){
-      if(!N[i] || v>N[i].p || (v===N[i].p && lat<N[i].lat)) N[i]={lat:lat,p:v};
+      if(!N[i]) N[i]={edge:lat,p:v,real:1};
+      else { if(lat<N[i].edge) N[i].edge=lat; if(v>N[i].p) N[i].p=v; }
     }else{
-      if(!S[i] || v>S[i].p || (v===S[i].p && lat>S[i].lat)) S[i]={lat:lat,p:v};
+      if(!S[i]) S[i]={edge:lat,p:v,real:1};
+      else { if(lat>S[i].edge) S[i].edge=lat; if(v>S[i].p) S[i].p=v; }
     }
   });
-  function complete(arr){
+  function fillTinyGaps(arr){
     for(let i=0;i<n;i++){
       if(arr[i]) continue;
-      let src=null;
-      for(let d=1;d<n;d++){
-        if(arr[(i-d+n)%n]){src=arr[(i-d+n)%n];break;}
-        if(arr[(i+d)%n]){src=arr[(i+d)%n];break;}
+      let p=-1, nx=-1;
+      for(let d=1;d<=MAXGAP;d++){
+        if(p<0 && arr[(i-d+n)%n]&&arr[(i-d+n)%n].real) p=d;
+        if(nx<0 && arr[(i+d)%n]&&arr[(i+d)%n].real) nx=d;
+        if(p>0 && nx>0) break;
       }
-      if(src) arr[i]={lat:src.lat,p:src.p};
+      if(p<0||nx<0) continue;
+      const a=arr[(i-p+n)%n], b=arr[(i+nx)%n], t=p/(p+nx);
+      arr[i]={edge:a.edge+(b.edge-a.edge)*t, p:a.p+(b.p-a.p)*t, real:0};
     }
   }
-  complete(N); complete(S);
-  function pack(arr, south){
-    const sm=[];
+  function smoothField(arr, key, half){
+    const out=new Array(n);
     for(let i=0;i<n;i++){
       if(!arr[i]) continue;
       let s=0,c=0;
-      for(let k=-3;k<=3;k++){
+      for(let k=-half;k<=half;k++){
         const rec=arr[(i+k+n)%n];
-        if(rec){s+=rec.lat;c++;}
+        if(!rec||!isFinite(rec[key])) continue;
+        s+=rec[key];c++;
       }
-      const lat=s/c, p=arr[i].p, lon=-180+i*step;
-      const off=viewOffsetDeg(p);
-      sm.push({lon:lon, peak:lat, view:south?Math.min(-18,lat+off):Math.max(18,lat-off)});
+      out[i]=Object.assign({}, arr[i]);
+      if(c) out[i][key]=s/c;
     }
-    const peak=sm.map(function(r){return {lon:r.lon,lat:r.peak};});
-    const view=sm.map(function(r){return {lon:r.lon,lat:r.view};});
-    if(view.length){
-      peak.push({lon:180,lat:peak[0].lat});
-      view.push({lon:180,lat:view[0].lat});
+    return out;
+  }
+  function pack(arr, south){
+    fillTinyGaps(arr);
+    arr=smoothField(arr, "edge", 2);
+    arr=smoothField(arr, "p", 2);
+    const peak=[], view=[];
+    for(let i=0;i<n;i++){
+      if(!arr[i]) continue;
+      const lon=-180+i*step;
+      const m=Math.abs(magLat(arr[i].edge, lon));
+      const vm=Math.max(34, Math.min(72, m-viewOffsetDeg(arr[i].p)));
+      const sign=south?-1:1;
+      peak.push({lon:lon, lat:geoLatForMlat(sign*m, lon)});
+      view.push({lon:lon, lat:geoLatForMlat(sign*vm, lon)});
     }
     return {peak:peak, view:view};
   }
@@ -988,14 +1048,21 @@ function buildViewLines(coords){
   peakLineS=ps.peak; viewLineS=ps.view;
 }
 function interpLine(arr, lon){
-  if(!arr||!arr.length) return NaN;
+  if(!arr||arr.length<2) return NaN;
   lon=lonNorm(lon);
-  let best=arr[0], bestD=999;
-  for(let i=0;i<arr.length;i++){
-    let d=Math.abs(arr[i].lon-lon); if(d>180) d=360-d;
-    if(d<bestD){bestD=d; best=arr[i]}
-  }
-  return best?best.lat:NaN;
+  const n=arr.length;
+  let i=0;
+  while(i<n && arr[i].lon<lon) i++;
+  const b=arr[i<n?i:0], a=arr[(i-1+n)%n];
+  if(!a||!b) return NaN;
+  if(lonGap(a.lon, lon)>12 || lonGap(b.lon, lon)>12) return NaN;
+  let lonA=a.lon, lonB=b.lon, x=lon;
+  if(lonB<lonA) lonB+=360;
+  if(x<lonA) x+=360;
+  const span=lonB-lonA;
+  if(span>24) return NaN;
+  const t=(x-lonA)/Math.max(1e-6, span);
+  return a.lat+(b.lat-a.lat)*t;
 }
 function viewPctAt(lat, lon){
   const north=lat>=0;
@@ -1020,51 +1087,47 @@ function updateAuroraView(){
   const pct=viewPctAt(cfg.lat, cfg.lon);
   vAurora.textContent=Math.round(pct)+"%";
   tone(vAurora,"pct",pct);
-  if(mapMode==="globe" && globeCtl){
-    if(updateAuroraView._g) return;
-    updateAuroraView._g=setTimeout(function(){
-      updateAuroraView._g=0;
-      try{ (globeCtl.paint||globeCtl.refresh)(); }catch(e){}
-    }, 500);
-  }else{
-    try{drawEarth()}catch(e){}
-  }
+  try{drawEarth()}catch(e){}
 }
 function drawViewLine(ctx,w,h){
-  function strokePoly(arr){
-    if(!arr||arr.length<3) return;
+  function strokeRun(run){
+    if(!run||run.length<3) return;
     ctx.beginPath();
-    arr.forEach(function(pt,i){
+    run.forEach(function(pt,i){
       const p=xy(pt.lon, pt.lat, w, h);
       if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
     });
     ctx.stroke();
   }
-  const lines=[viewLineN, viewLineS];
-  const has=lines.some(function(a){return a&&a.length>8});
+  function eachRun(arr, fn){
+    if(!arr||!arr.length) return;
+    let run=[];
+    function flush(){ if(run.length>=3) fn(run); run=[]; }
+    arr.forEach(function(pt){
+      if(!pt||!isFinite(pt.lat)){ flush(); return; }
+      if(run.length && lonGap(pt.lon, run[run.length-1].lon)>30) flush();
+      run.push(pt);
+    });
+    flush();
+  }
   ctx.save();
-  ctx.setLineDash([10,6]);
-  ctx.strokeStyle="rgba(241,245,249,0.9)";
-  ctx.lineWidth=1.6;
   ctx.lineJoin="round";
   ctx.lineCap="round";
-  if(has){
-    lines.forEach(strokePoly);
-  }else{
-    const kp=currentKpView(), V=viewMlat(kp);
-    [[V],[-V]].forEach(function(pair){
-      ctx.beginPath();
-      for(let lng=-180,i=0;lng<=180;lng+=2,i++){
-        const p=xy(lng, geoLatForMlat(pair[0], lng), w, h);
-        if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
-      }
-      ctx.stroke();
+  [viewLineN, viewLineS].forEach(function(arr){
+    eachRun(arr, function(run){
+      ctx.setLineDash([]);
+      ctx.strokeStyle="rgba(255,255,255,0.22)";
+      ctx.lineWidth=3.4;
+      strokeRun(run);
+      ctx.setLineDash([7,5]);
+      ctx.strokeStyle="rgba(248,250,252,0.92)";
+      ctx.lineWidth=1.35;
+      strokeRun(run);
     });
-  }
+  });
   ctx.restore();
 }
 function drawEarth(){
-  if(mapMode==="globe") return;
   const el=document.getElementById("earth"),box=el&&el.parentElement;if(!el||!box)return;
   const w=Math.max(320,box.clientWidth),h=Math.max(160,box.clientHeight),dpr=Math.min(2,window.devicePixelRatio||1);
   el.width=Math.round(w*dpr);el.height=Math.round(h*dpr);el.style.width=w+"px";el.style.height=h+"px";
@@ -1101,8 +1164,7 @@ function drawEarth(){
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();
 }
 function mapCaption(obs){
-  const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = view line"):"";
-  if(mapMode==="globe") return ov||"3D globe · drag to spin · pinch/scroll zoom";
+  const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = horizon view line"):"";
   return ov||"equirectangular Earth · poles + OVATION";
 }
 async function loadAurora(){
@@ -1134,7 +1196,7 @@ function tick(){
     const rl=document.getElementById("railLocal"); if(rl) rl.textContent=h+":"+m+":"+s+" "+z;
   }catch(e){}
   const min=n.getUTCHours()*60+n.getUTCMinutes();
-  if(min!==tick._termMin){tick._termMin=min; try{ if(!globeCtl) drawEarth(); }catch(e){}}
+  if(min!==tick._termMin){tick._termMin=min; try{ drawEarth(); }catch(e){}}
   restampAges();
 }
 function markUpdated(ts){
@@ -1186,11 +1248,13 @@ function applyWorkerData(data){
 
 tick();
 try{drawHemiPlot()}catch(e){}
+restoreKp1m();
+refreshKp1m();
 refreshHemi();
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001420", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001431", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}
@@ -1216,222 +1280,16 @@ document.addEventListener("visibilitychange",function(){
   if(wxWorker){try{wxWorker.postMessage({type:"config",pollSec:cfg.pollSec||60,hidden:document.hidden})}catch(e){}}
   if(!document.hidden) refreshKpis("all");
 });
-window.addEventListener("resize",function(){ if(globeCtl&&globeCtl.resize) globeCtl.resize(); else drawEarth(); drawAll(); });
-function loadScript(src){
-  return new Promise(function(res, rej){
-    const s=document.createElement("script");
-    s.src=src; s.async=true;
-    s.onload=function(){res()};
-    s.onerror=function(){rej(new Error("script "+src))};
-    document.head.appendChild(s);
-  });
-}
-function viewPaths(){
-  function smooth(arr){
-    if(!arr||arr.length<8) return null;
-    const n=arr.length, sm=[];
-    for(let i=0;i<n;i++){
-      let s=0,c=0;
-      for(let k=-4;k<=4;k++){
-        const rec=arr[(i+k+n)%n];
-        if(rec&&isFinite(rec.lat)){ s+=rec.lat; c++; }
-      }
-      sm.push({lat:s/c, lon:arr[i].lon});
-    }
-    return sm;
-  }
-  function toCoords(arr){
-    const src=smooth(arr);
-    if(!src) return null;
-    return src.map(function(p){ return [p.lat, p.lon]; });
-  }
-  const out=[];
-  const n=toCoords(viewLineN), s=toCoords(viewLineS);
-  if(n) out.push({coords:n});
-  if(s) out.push({coords:s});
-  return out;
-}
-const EARTH_NIGHT="lib/earth-night.jpg";
-let nightImg=null, nightWait=null;
-function loadNightImg(){
-  if(nightImg) return Promise.resolve(nightImg);
-  if(nightWait) return nightWait;
-  nightWait=new Promise(function(res){
-    const img=new Image();
-    img.onload=function(){ nightImg=img; res(img); };
-    img.onerror=function(){ nightWait=null; res(null); };
-    img.src=EARTH_NIGHT;
-  });
-  return nightWait;
-}
-function bakeGlobeTex(){
-  return loadNightImg().then(function(img){
-    const c=document.createElement("canvas");
-    const maxW=3600;
-    let w=img?img.naturalWidth:2048, h=img?img.naturalHeight:1024;
-    if(w>maxW){ h=Math.round(h*maxW/w); w=maxW; }
-    c.width=w; c.height=h;
-    const ctx=c.getContext("2d");
-    ctx.imageSmoothingEnabled=true;
-    ctx.imageSmoothingQuality="high";
-    ctx.fillStyle="#05070c";
-    ctx.fillRect(0,0,w,h);
-    if(img){
-      ctx.filter="contrast(1.18) saturate(1.08) brightness(1.06)";
-      ctx.drawImage(img,0,0,w,h);
-      ctx.filter="none";
-    }
-    if(auroraData){
-      const off=document.createElement("canvas");
-      off.width=auroraData.width; off.height=auroraData.height;
-      off.getContext("2d").putImageData(auroraData,0,0);
-      const blur=Math.max(1.2, Math.round(w/1400));
-      ctx.save();
-      ctx.filter="blur("+blur+"px)";
-      ctx.globalCompositeOperation="screen";
-      ctx.globalAlpha=0.82;
-      ctx.drawImage(off,0,0,w,h);
-      ctx.restore();
-    }
-    return c.toDataURL("image/jpeg", 0.93);
-  });
-}
-function globePin(){
-  return [{lat:cfg.lat, lng:cfg.lon, pct:Math.round(viewPctAt(cfg.lat, cfg.lon))}];
-}
-function pinEl(d){
-  const w=document.createElement("div");
-  w.style.cssText="text-align:center;transform:translate(-50%,-110%);pointer-events:none;font:600 11px ui-sans-serif,system-ui";
-  w.innerHTML='<div style="width:10px;height:10px;border-radius:50%;background:#2dd4bf;margin:0 auto 5px;box-shadow:0 0 0 3px rgba(45,212,191,.3)"></div><div style="background:#070b12;border:1px solid #2dd4bf;color:#5eead4;border-radius:6px;padding:2px 7px">'+(isFinite(d.pct)?d.pct:0)+'%</div>';
-  return w;
-}
-function paintStars(host){
-  if(!host) return;
-  let c=host.querySelector("#starfield");
-  if(!c){
-    c=document.createElement("canvas");
-    c.id="starfield";
-    c.style.cssText="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0";
-    host.insertBefore(c, host.firstChild);
-  }
-  const w=Math.max(2, host.clientWidth||800), h=Math.max(2, host.clientHeight||400);
-  c.width=Math.round(w*2); c.height=Math.round(h*2);
-  const ctx=c.getContext("2d");
-  ctx.fillStyle="#05070c";
-  ctx.fillRect(0,0,c.width,c.height);
-  const n=Math.round((c.width*c.height)/1600);
-  for(let i=0;i<n;i++){
-    const x=Math.random()*c.width, y=Math.random()*c.height, a=0.18+Math.random()*0.82;
-    ctx.fillStyle="rgba(255,255,255,"+a+")";
-    ctx.beginPath();
-    ctx.arc(x,y, Math.random()<0.1?1.8:0.7, 0, Math.PI*2);
-    ctx.fill();
-  }
-}
-async function startGlobe(){
-  if(typeof Globe!=="function"){
-    await loadScript("lib/globe.gl.min.js");
-  }
-  if(typeof Globe!=="function") throw new Error("Globe missing");
-  const el=document.getElementById("globeBox");
-  if(!el) throw new Error("globeBox missing");
-  el.innerHTML="";
-  const tex=await bakeGlobeTex();
-  const world=Globe()
-    .backgroundColor("rgba(0,0,0,0)")
-    .showGlobe(true)
-    .showAtmosphere(true)
-    .atmosphereColor("#243656")
-    .atmosphereAltitude(0.14)
-    .globeImageUrl(tex)
-    .htmlElementsData(globePin())
-    .htmlLat("lat")
-    .htmlLng("lng")
-    .htmlElement(pinEl)
-    .htmlAltitude(0.015)
-    .pathsData(viewPaths())
-    .pathPoints("coords")
-    .pathPointLat(function(p){return Array.isArray(p)?p[0]:p.lat})
-    .pathPointLng(function(p){return Array.isArray(p)?p[1]:(p.lng||p.lon)})
-    .pathColor(function(){return "rgba(241,245,249,0.88)"})
-    .pathStroke(0.42)
-    .pathPointAlt(0.005)
-    .pathResolution(6)
-    .pathDashLength(0.07)
-    .pathDashGap(0.035)
-    .pathDashAnimateTime(0)
-    (el);
-  paintStars(el);
-  try{
-    world.renderer().setClearColor(0x000000, 0);
-    world.renderer().setClearAlpha(0);
-  }catch(e){}
-  const glc=el.querySelector("canvas:not(#starfield)");
-  if(glc){ glc.style.position="absolute"; glc.style.inset="0"; glc.style.zIndex="1"; glc.style.background="transparent"; }
-  world.width(el.clientWidth||el.offsetWidth);
-  world.height(el.clientHeight||el.offsetHeight);
-  world.pointOfView({lat:cfg.lat, lng:cfg.lon, altitude:2.05}, 0);
-  try{
-    const m=world.globeMaterial();
-    if(m&&m.map){ m.map.anisotropy=8; m.map.needsUpdate=true; }
-  }catch(e){}
-  const ctl=world.controls();
-  ctl.autoRotate=true;
-  ctl.autoRotateSpeed=0.18;
-  ctl.enableDamping=true;
-  ctl.minDistance=140;
-  ctl.maxDistance=360;
-  ctl.addEventListener("start", function(){ ctl.autoRotate=false; });
-  function refresh(){
-    try{ world.htmlElementsData(globePin()); }catch(e){}
-    try{ world.pathsData(viewPaths()); }catch(e){}
-  }
-  async function paint(){
-    try{ world.globeImageUrl(await bakeGlobeTex()); }catch(e){}
-    refresh();
-  }
-  function resize(){
-    world.width(el.clientWidth||640);
-    world.height(el.clientHeight||320);
-    paintStars(el);
-  }
-  globeCtl={refresh:refresh, paint:paint, resize:resize, world:world};
-}
-function applyMapMode(mode){
-  mapMode=(mode==="globe")?"globe":"flat";
-  try{ localStorage.setItem("spacewx-mapMode", mapMode); }catch(e){}
-  document.body.classList.toggle("mode-globe", mapMode==="globe");
-  document.body.classList.toggle("mode-flat", mapMode!=="globe");
-  const bf=document.getElementById("btnFlat"), bg=document.getElementById("btnGlobe");
-  if(bf) bf.className=mapMode==="flat"?"on":"";
-  if(bg) bg.className=mapMode==="globe"?"on":"";
-  if(mapMode==="globe"){
-    if(!globeCtl){
-      startGlobe().catch(function(err){
-        console.warn("globe failed", err);
-        applyMapMode("flat");
-      });
-    }else{
-      try{ globeCtl.resize(); globeCtl.refresh(); }catch(e){}
-    }
-  }else{
-    try{ drawEarth(); }catch(e){}
-  }
-}
-(function(){
-  let saved="flat";
-  try{ saved=localStorage.getItem("spacewx-mapMode")||"flat"; }catch(e){}
-  const seg=document.getElementById("mapModeSeg");
-  if(seg) seg.addEventListener("click", function(e){
-    const b=e.target.closest("button[data-mode]");
-    if(b) applyMapMode(b.getAttribute("data-mode"));
-  });
-  applyMapMode(saved);
-})();
+window.addEventListener("resize",function(){ drawEarth(); drawAll(); });
 (function(){
   const HALF=30*60*1000;
   function wait(){return Math.max(1000, HALF-(Date.now()%HALF))}
   function reload(){
+    const utcMin=new Date().getUTCHours()*60+new Date().getUTCMinutes();
+    if(utcMin<5){
+      setTimeout(reload, 5*60000-(Date.now()%60000));
+      return;
+    }
     if(document.hidden){
       document.addEventListener("visibilitychange",function once(){
         if(!document.hidden){document.removeEventListener("visibilitychange",once);location.reload()}

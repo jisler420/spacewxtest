@@ -218,7 +218,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.33</div>
+  <div class="pagefoot">V00.13.34</div>
 </div>
 <script>
 (function(){
@@ -1089,7 +1089,15 @@ function updateAuroraView(){
   tone(vAurora,"pct",pct);
   try{drawEarth()}catch(e){}
 }
-function drawViewLine(ctx,w,h){
+function drawViewLine(ctx,w,h, sun){
+  const rad=Math.PI/180;
+  const lngSun=sun.lngSun, sinD=sun.sinD, cosD=sun.cosD;
+  function isNight(lat, lon){
+    const cosH=Math.cos((lon-lngSun)*rad);
+    const latR=lat*rad;
+    const cosz=Math.sin(latR)*sinD+Math.cos(latR)*cosD*cosH;
+    return cosz<=0;
+  }
   function strokeRun(run){
     if(!run||run.length<3) return;
     ctx.beginPath();
@@ -1104,7 +1112,7 @@ function drawViewLine(ctx,w,h){
     let run=[];
     function flush(){ if(run.length>=3) fn(run); run=[]; }
     arr.forEach(function(pt){
-      if(!pt||!isFinite(pt.lat)){ flush(); return; }
+      if(!pt||!isFinite(pt.lat)||!isNight(pt.lat, pt.lon)){ flush(); return; }
       if(run.length && lonGap(pt.lon, run[run.length-1].lon)>8) flush();
       run.push(pt);
     });
@@ -1150,12 +1158,21 @@ function drawEarth(){
     }
     if(y0>=0) ctx.fillRect(x,y0,1,run);
   }
+  ctx.beginPath();
+  for(let lng=-180,i=0;lng<=180;lng+=2,i++){
+    const cosH=Math.cos((lng-lngSun)*rad);
+    let lat=0;
+    if(Math.abs(sinD)>1e-6) lat=Math.atan((-cosD*cosH)/sinD)/rad;
+    const p=xy(lng, Math.max(-89.5, Math.min(89.5, lat)), w, h);
+    if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
+  }
+  ctx.strokeStyle="rgba(226,232,240,0.55)"; ctx.lineWidth=1.2; ctx.stroke();
   if(auroraData){const off=document.createElement("canvas");off.width=auroraData.width;off.height=auroraData.height;off.getContext("2d").putImageData(auroraData,0,0);ctx.save();ctx.imageSmoothingEnabled=true;ctx.globalCompositeOperation="screen";ctx.filter="blur(1.6px)";ctx.drawImage(off,0,0,w,h);ctx.restore()}
-  drawViewLine(ctx,w,h);
+  drawViewLine(ctx,w,h,{lngSun:lngSun,sinD:sinD,cosD:cosD});
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();
 }
 function mapCaption(obs){
-  const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = horizon view line"):"";
+  const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+" · white dash = night-side view line"):"";
   return ov||"equirectangular Earth · poles + OVATION";
 }
 async function loadAurora(){

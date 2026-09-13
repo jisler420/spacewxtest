@@ -218,7 +218,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.34</div>
+  <div class="pagefoot">V00.13.35</div>
 </div>
 <script>
 (function(){
@@ -1092,27 +1092,38 @@ function updateAuroraView(){
 function drawViewLine(ctx,w,h, sun){
   const rad=Math.PI/180;
   const lngSun=sun.lngSun, sinD=sun.sinD, cosD=sun.cosD;
-  function isNight(lat, lon){
+  function nightFade(lat, lon){
     const cosH=Math.cos((lon-lngSun)*rad);
     const latR=lat*rad;
     const cosz=Math.sin(latR)*sinD+Math.cos(latR)*cosD*cosH;
-    return cosz<=0;
+    const alt=Math.asin(Math.max(-1, Math.min(1, cosz)))/rad;
+    if(alt>=4) return 0;
+    if(alt<=-12) return 1;
+    const t=(4-alt)/16;
+    return t*t*(3-2*t);
   }
-  function strokeRun(run){
-    if(!run||run.length<3) return;
-    ctx.beginPath();
-    run.forEach(function(pt,i){
-      const p=xy(pt.lon, pt.lat, w, h);
-      if(!i) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
-    });
-    ctx.stroke();
+  function strokeSegs(run, rgb, width, dash, a0){
+    if(!run||run.length<2) return;
+    ctx.lineWidth=width;
+    ctx.setLineDash(dash||[]);
+    for(let i=1;i<run.length;i++){
+      const a=run[i-1], b=run[i];
+      const fa=nightFade(a.lat,a.lon), fb=nightFade(b.lat,b.lon);
+      const f=(fa+fb)/2;
+      if(f<0.04) continue;
+      ctx.strokeStyle="rgba("+rgb+","+(a0*f).toFixed(3)+")";
+      ctx.beginPath();
+      const p=xy(a.lon,a.lat,w,h), q=xy(b.lon,b.lat,w,h);
+      ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]);
+      ctx.stroke();
+    }
   }
   function eachRun(arr, fn){
     if(!arr||!arr.length) return;
     let run=[];
-    function flush(){ if(run.length>=3) fn(run); run=[]; }
+    function flush(){ if(run.length>=2) fn(run); run=[]; }
     arr.forEach(function(pt){
-      if(!pt||!isFinite(pt.lat)||!isNight(pt.lat, pt.lon)){ flush(); return; }
+      if(!pt||!isFinite(pt.lat)||nightFade(pt.lat,pt.lon)<0.02){ flush(); return; }
       if(run.length && lonGap(pt.lon, run[run.length-1].lon)>8) flush();
       run.push(pt);
     });
@@ -1123,14 +1134,8 @@ function drawViewLine(ctx,w,h, sun){
   ctx.lineCap="round";
   [viewLineN, viewLineS].forEach(function(arr){
     eachRun(arr, function(run){
-      ctx.setLineDash([]);
-      ctx.strokeStyle="rgba(255,255,255,0.22)";
-      ctx.lineWidth=3.4;
-      strokeRun(run);
-      ctx.setLineDash([7,5]);
-      ctx.strokeStyle="rgba(248,250,252,0.92)";
-      ctx.lineWidth=1.35;
-      strokeRun(run);
+      strokeSegs(run, "255,255,255", 3.4, [], 0.22);
+      strokeSegs(run, "248,250,252", 1.35, [7,5], 0.92);
     });
   });
   ctx.restore();

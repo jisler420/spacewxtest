@@ -1,9 +1,8 @@
 name: Hemi archive
 on:
   schedule:
-    - cron: "50 * * * *"
-    - cron: "20,30,40,50,55 23 * * *"
-    - cron: "0,5,10,20,30,40,50 0 * * *"
+    - cron: "50,55 23 * * *"
+    - cron: "0 0 * * *"
   workflow_dispatch:
 permissions:
   contents: write
@@ -15,19 +14,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Merge NOAA hemi-power (36h) and Kp 1m (6h)
-        run: |
-          python3 scripts/merge_hemi.py
-          python3 scripts/merge_kp1m.py
+      - name: Snapshot NOAA hemi-power at 23:55 UTC (previous evening only)
+        run: python3 scripts/merge_hemi.py
       - name: Commit if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/hemi-archive.txt data/kp1m-archive.json
+          git add data/hemi-archive.txt
           if git diff --cached --quiet; then
             echo "no archive change"
             exit 0
           fi
-          git commit -m "archive snapshot (hemi 36h, kp1m 6h)"
+          git commit -m "hemi 23:55 UTC snapshot (previous evening)"
           git pull --rebase --autostash origin main || git pull --rebase origin main || true
           git push

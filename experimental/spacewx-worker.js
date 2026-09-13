@@ -213,6 +213,11 @@ async function ovationIfNew(signal) {
   return settled(NOAA.aurora, signal);
 }
 
+function hemiNeedCache() {
+  const d = new Date(), h = d.getUTCHours(), m = d.getUTCMinutes();
+  return h < 6 || (h === 23 && m >= 50);
+}
+
 async function collect(kind, signal) {
   const now = new Date();
   const stop = isoH(new Date(now.getTime() + 3600000));
@@ -281,7 +286,7 @@ async function collect(kind, signal) {
       settled(NOAA.day, signal),
       settled(NOAA.dstPred, signal),
       settled(NOAA.hemi, signal),
-      settled(NOAA.hemiSnap, signal),
+      hemiNeedCache() ? settled(NOAA.hemiSnap, signal) : Promise.resolve(null),
       settled("../hp30.txt", signal),
       ovationIfNew(signal),
     ]);

@@ -228,7 +228,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.29</div>
+  <div class="pagefoot">V00.14.30</div>
 </div>
 <script>
 (function(){
@@ -377,8 +377,12 @@ function parseHemiSeries(txt){
   });
   return out;
 }
-const HEMI_KEEP=36*3600000;
+const HEMI_KEEP=8*3600000;
 const HEMI_LS="spacewx-hemi";
+function hemiNeedCache(){
+  const d=new Date(), h=d.getUTCHours(), m=d.getUTCMinutes();
+  return h<6 || (h===23 && m>=50);
+}
 function mergeHemi(rows){
   const by=Object.create(null);
   (hemiSeries||[]).concat(rows||[]).forEach(function(r){
@@ -555,18 +559,23 @@ function applyHemi(hemi, ts){
   drawHemiPlot();
 }
 async function refreshHemi(){
-  const base=document.baseURI||location.href;
-  const urls=[
-    "https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt",
-    new URL("../data/hemi-archive.txt", base).href,
-    "https://jisler420.github.io/spacewxtest/data/hemi-archive.txt",
-    "https://jisler420.github.io/spacewxnightly/data/hemi-archive.txt"
-  ];
-  const got=await Promise.all(urls.map(function(u){return settled(u)}));
-  const live=got[0];
-  for(let i=1;i<got.length;i++) if(got[i]) applyHemi(got[i]);
+  const liveUrl="https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt";
+  const live=await settled(liveUrl);
   if(live) applyHemi(live);
-  else try{drawHemiPlot()}catch(e){}
+  const t0=Date.now()-6*3600000;
+  const hole=!hemiSeries.length || hemiSeries[0].obs>t0+15*60000;
+  if(hemiNeedCache() || hole){
+    const base=document.baseURI||location.href;
+    const snaps=[
+      new URL("../data/hemi-archive.txt", base).href,
+      "https://jisler420.github.io/spacewxtest/data/hemi-archive.txt",
+      "https://jisler420.github.io/spacewxnightly/data/hemi-archive.txt"
+    ];
+    const got=await Promise.all(snaps.map(function(u){return settled(u)}));
+    got.forEach(function(t){ if(t) applyHemi(t); });
+    if(live) applyHemi(live);
+  }
+  try{drawHemiPlot()}catch(e){}
 }
 async function refreshKp1m(){
   const base=document.baseURI||location.href;
@@ -1265,7 +1274,7 @@ refreshHemi();
 drawEarth();loadImgs();loadEnlil();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001429", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001430", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

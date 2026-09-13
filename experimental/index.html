@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.43</div>
+  <div class="pagefoot">V00.14.44</div>
 </div>
 <script>
 (function(){
@@ -1240,18 +1240,7 @@ function paintGlobeHeat(){
   }catch(e){
     try{ globeCtl.heatmapsData(globeHeat); }catch(e2){}
   }
-  try{
-    globeCtl.pathsData(viewPathData())
-      .pathPoints("points")
-      .pathPointLat(function(p){ return p[0]; })
-      .pathPointLng(function(p){ return p[1]; })
-      .pathPointAlt(function(p){ return p[2]; })
-      .pathColor(function(d){ return d.kind==="halo"?"rgba(255,255,255,0.22)":"rgba(248,250,252,0.95)"; })
-      .pathStroke(function(d){ return d.kind==="halo"?1.05:0.42; })
-      .pathDashLength(function(d){ return d.kind==="halo"?0:0.045; })
-      .pathDashGap(function(d){ return d.kind==="halo"?0:0.032; })
-      .pathTransitionDuration(0);
-  }catch(e){}
+  try{ globeCtl.pathsData([]); }catch(e){}
 }
 function startGlobe(){
   if(globeCtl){ sizeGlobe(); sunLight(); paintGlobeHeat(); applyGlobeTexture(); try{ globeCtl.resumeAnimation(); }catch(e){} return; }
@@ -1390,7 +1379,7 @@ function drawEarth(){
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();
 }
 function mapCaption(obs){
-  const mode=mapMode==="globe"?" · 3D curtain · white dash = view line":" · white dash = horizon view line";
+  const mode=mapMode==="globe"?" · 3D curtain":" · white dash = horizon view line";
   const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+mode):"";
   return ov||"equirectangular Earth · poles + OVATION";
 }

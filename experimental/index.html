@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.56</div>
+  <div class="pagefoot">V00.14.57</div>
 </div>
 <script>
 (function(){
@@ -1179,7 +1179,7 @@ function ovationHeatPoints(coords){
   (coords||[]).forEach(function(p){
     if(!p||p.length<3) return;
     const w=Number(p[2])||0;
-    if(!(w>=1)) return;
+    if(!(w>=5)) return;
     let lon=Number(p[0]); if(lon>180) lon-=360;
     out.push({lat:Number(p[1]), lng:lon, weight:w});
   });
@@ -1252,9 +1252,10 @@ function paintGlobeHeat(){
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
+      .heatmapColorSaturation(0.85)
       .heatmapBaseAltitude(0.001)
-      .heatmapTopAltitude(0.03)
-      .heatmapBandwidth(6)
+      .heatmapTopAltitude(0.022)
+      .heatmapBandwidth(2.2)
       .heatmapsTransitionDuration(0)
       .heatmapsData(globeHeat.length?[globeHeat]:[]);
   }catch(e){}
@@ -1280,9 +1281,10 @@ function startGlobe(){
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
+      .heatmapColorSaturation(0.85)
       .heatmapBaseAltitude(0.001)
-      .heatmapTopAltitude(0.03)
-      .heatmapBandwidth(6)
+      .heatmapTopAltitude(0.022)
+      .heatmapBandwidth(2.2)
       .heatmapsTransitionDuration(0)
       .enablePointerInteraction(true)
       (el);

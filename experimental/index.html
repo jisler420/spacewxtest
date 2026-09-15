@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.48</div>
+  <div class="pagefoot">V00.14.49</div>
 </div>
 <script>
 (function(){
@@ -1177,14 +1177,25 @@ try{ const mm=localStorage.getItem("spacewx-mapMode"); if(mm==="globe"||mm==="fl
 function ovationHeatPoints(coords){
   const step=2, map=Object.create(null);
   (coords||[]).forEach(function(p){
-    if(!p||p.length<3||p[2]<4||Math.abs(p[1])<20) return;
-    let lon=p[0]; if(lon>180) lon-=360;
-    const k=Math.round(lon/step)+","+Math.round(p[1]/step);
-    if(!map[k]||p[2]>map[k][2]) map[k]=[p[1], lon, p[2]];
+    if(!p||p.length<3||p[2]<2||Math.abs(p[1])<18) return;
+    let lon=Number(p[0]); if(lon>180) lon-=360;
+    const k=Math.round(lon/step)+","+Math.round(Number(p[1])/step);
+    const w=Number(p[2])||0;
+    if(!map[k]||w>map[k][2]) map[k]=[Number(p[1]), lon, w];
   });
   const out=[];
   for(const k in map) out.push(map[k]);
   return out;
+}
+function auroraColorFn(){
+  return function(t){
+    const u=Math.max(0, Math.min(1, Number(t)||0));
+    if(u<0.08) return "rgba(16,90,50,"+(u*2.2)+")";
+    if(u<0.28) return "rgba(22,170,72,"+(0.28+u)+")";
+    if(u<0.55) return "rgba(40,230,150,"+(0.6+u*0.3)+")";
+    if(u<0.8) return "rgba(130,255,214,0.92)";
+    return "rgba(245,255,250,0.98)";
+  };
 }
 function grayGlobeUrl(){
   if(globeGrayUrl && globeGrayReady) return globeGrayUrl;
@@ -1198,10 +1209,23 @@ function grayGlobeUrl(){
     x.drawImage(baseImg, 0, y0, w, Math.max(1, y1-y0));
     globeGrayReady=true;
   }
+  if(auroraData){
+    const off=document.createElement("canvas");
+    off.width=auroraData.width; off.height=auroraData.height;
+    off.getContext("2d").putImageData(auroraData,0,0);
+    x.save();
+    x.globalCompositeOperation="screen";
+    x.globalAlpha=0.7;
+    x.filter="blur(1.2px)";
+    x.drawImage(off,0,0,w,h);
+    x.restore();
+  }
   globeGrayUrl=c.toDataURL("image/jpeg", 0.82);
   return globeGrayUrl;
 }
 function applyGlobeTexture(){
+  globeGrayUrl="";
+  globeGrayReady=false;
   if(!globeCtl) return;
   try{ globeCtl.globeImageUrl(grayGlobeUrl()); }catch(e){}
 }
@@ -1242,16 +1266,26 @@ function paintGlobeHeat(){
   globeHeat=ovationHeatPoints(ovationCoords);
   if(!globeCtl) return;
   const key=(globeHeat.length?globeHeat[0].join(",")+",":"")+globeHeat.length+","+(globeHeat.length?globeHeat[globeHeat.length-1].join(","):"");
-  if(key===globeHeatKey) return;
+  if(key===globeHeatKey){
+    try{ applyGlobeTexture(); }catch(e){}
+    return;
+  }
   globeHeatKey=key;
   try{
-    globeCtl.heatmapPoints(function(d){ return (d&&d.pts)||[]; })
-      .heatmapPointLat(function(p){ return p[0]; })
-      .heatmapPointLng(function(p){ return p[1]; })
-      .heatmapPointWeight(function(p){ return p[2]; })
+    globeCtl
+      .heatmapPoints(function(d){ return Array.isArray(d)?d:(d&&(d.pts||d.points))||[]; })
+      .heatmapPointLat(function(p){ return Number(p[0]); })
+      .heatmapPointLng(function(p){ return Number(p[1]); })
+      .heatmapPointWeight(function(p){ return Math.max(0.25, Number(p[2])||0); })
+      .heatmapColorFn(auroraColorFn)
+      .heatmapColorSaturation(2.4)
+      .heatmapBandwidth(4.2)
+      .heatmapBaseAltitude(0.002)
+      .heatmapTopAltitude(0.05)
       .heatmapsTransitionDuration(0)
-      .heatmapsData(globeHeat.length?[{pts:globeHeat}]:[]);
+      .heatmapsData(globeHeat.length?[globeHeat]:[]);
   }catch(e){}
+  try{ applyGlobeTexture(); }catch(e){}
 }
 function startGlobe(){
   if(typeof Globe!=="function") return;
@@ -1271,20 +1305,16 @@ function startGlobe(){
       .showAtmosphere(true)
       .atmosphereColor("#64748b")
       .atmosphereAltitude(0.1)
-      .heatmapPoints(function(d){ return (d&&d.pts)||[]; })
-      .heatmapPointLat(function(p){ return p[0]; })
-      .heatmapPointLng(function(p){ return p[1]; })
-      .heatmapPointWeight(function(p){ return p[2]; })
-      .heatmapBaseAltitude(0.001)
-      .heatmapTopAltitude(0.028)
-      .heatmapBandwidth(5.5)
-      .heatmapColorFn(function(t){
-        const u=Math.max(0, Math.min(1, t));
-        if(u<0.25) return "rgba(16,120,70,"+(0.15+u*1.2)+")";
-        if(u<0.55) return "rgba(34,197,140,"+(0.45+u*0.4)+")";
-        if(u<0.8) return "rgba(94,234,212,0.85)";
-        return "rgba(236,253,245,0.95)";
-      })
+      .heatmapPoints(function(d){ return Array.isArray(d)?d:(d&&(d.pts||d.points))||[]; })
+      .heatmapPointLat(function(p){ return Number(p[0]); })
+      .heatmapPointLng(function(p){ return Number(p[1]); })
+      .heatmapPointWeight(function(p){ return Math.max(0.25, Number(p[2])||0); })
+      .heatmapColorFn(auroraColorFn)
+      .heatmapColorSaturation(2.4)
+      .heatmapBandwidth(4.2)
+      .heatmapBaseAltitude(0.002)
+      .heatmapTopAltitude(0.05)
+      .heatmapsTransitionDuration(0)
       .enablePointerInteraction(true)
       (el);
     try{ globeCtl.renderer().setPixelRatio(Math.min(1.25, window.devicePixelRatio||1)); }catch(e){}

@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.59</div>
+  <div class="pagefoot">V00.14.60</div>
 </div>
 <script>
 (function(){
@@ -1175,21 +1175,20 @@ function updateAuroraView(){
 let mapMode="flat", globeCtl=null, globeHeat=[], globeGrayUrl="", globeHeatKey="", globeGrayReady=false;
 try{ const mm=localStorage.getItem("spacewx-mapMode"); if(mm==="globe"||mm==="flat") mapMode=mm; }catch(e){}
 function ovationHeatPoints(coords){
-  const cell=Object.create(null);
+  const g=Object.create(null);
   (coords||[]).forEach(function(p){
     if(!p||p.length<3) return;
-    const w=Number(p[2])||0, lat=Number(p[1]);
-    if(!(w>=1)||!isFinite(lat)) return;
-    let lon=Number(p[0]); if(lon>180) lon-=360;
-    if(!isFinite(lon)) return;
-    const la=Math.round(lat/2)*2;
-    const lo=Math.round(lon/3)*3;
-    const k=la+","+lo;
-    const cur=cell[k];
-    if(!cur||w>cur.weight) cell[k]={lat:la, lng:lo, weight:w};
+    const lon=Number(p[0]), lat=Number(p[1]), w=Number(p[2]);
+    if(!isFinite(lat)||!isFinite(lon)) return;
+    g[Math.round(lat)+","+((Math.round(lon)%360)+360)%360]=isFinite(w)?w:0;
   });
   const out=[];
-  Object.keys(cell).forEach(function(k){ out.push(cell[k]); });
+  for(let lat=-90; lat<=90; lat+=2){
+    for(let lon=0; lon<360; lon+=3){
+      const v=g[lat+","+lon];
+      out.push({lat:lat, lng:lon, weight:v==null?0:v});
+    }
+  }
   return out;
 }
 function grayGlobeUrl(){

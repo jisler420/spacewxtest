@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.46</div>
+  <div class="pagefoot">V00.14.47</div>
 </div>
 <script>
 (function(){
@@ -262,6 +262,31 @@ function applyHealth(h){
 }
 async function grab(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok) throw new Error(String(r.status));const ct=r.headers.get("content-type")||"";return (ct.includes("json")||u.endsWith(".json"))?r.json():r.text()}
 async function settled(u){try{return await grab(u)}catch(e){return null}}
+function uniqUrls(arr){
+  const out=[], seen=Object.create(null);
+  (arr||[]).forEach(function(u){ if(u&&!seen[u]){ seen[u]=1; out.push(u); } });
+  return out;
+}
+function inExperimental(){ try{ return /\/experimental(\/|$)/.test(location.pathname||""); }catch(e){ return false; } }
+function repoData(name){
+  const local=inExperimental()?("../data/"+name):("data/"+name);
+  return uniqUrls([
+    local,
+    "https://jisler420.github.io/spacewxtest/data/"+name,
+    "https://jisler420.github.io/spacewxnightly/data/"+name
+  ]);
+}
+function repoHp30(){
+  const local=inExperimental()?"../hp30.txt":"hp30.txt";
+  return uniqUrls([local, "https://jisler420.github.io/spacewxtest/hp30.txt"]);
+}
+async function settledFirst(urls){
+  for(let i=0;i<(urls||[]).length;i++){
+    const v=await settled(urls[i]);
+    if(v) return v;
+  }
+  return null;
+}
 const last=a=>Array.isArray(a)&&a.length?a[a.length-1]:{};
 function auroraLevel(kind,n){
   if(!isFinite(n))return 0;
@@ -566,12 +591,7 @@ async function refreshHemi(){
   const t0=Date.now()-6*3600000;
   const hole=!hemiSeries.length || hemiSeries[0].obs>t0+15*60000;
   if(hemiNeedCache() || hole){
-    const base=document.baseURI||location.href;
-    const snaps=[
-      new URL("../data/hemi-archive.txt", base).href,
-      "https://jisler420.github.io/spacewxtest/data/hemi-archive.txt",
-      "https://jisler420.github.io/spacewxnightly/data/hemi-archive.txt"
-    ];
+    const snaps=repoData("hemi-archive.txt");
     const got=await Promise.all(snaps.map(function(u){return settled(u)}));
     got.forEach(function(t){ if(t) applyHemi(t); });
     if(live) applyHemi(live);
@@ -579,14 +599,10 @@ async function refreshHemi(){
   try{drawHemiPlot()}catch(e){}
 }
 async function refreshKp1m(){
-  const base=document.baseURI||location.href;
-  const urls=[
-    new URL("../data/kp1m-archive.json", base).href,
-    "https://jisler420.github.io/spacewxtest/data/kp1m-archive.json",
-    "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
-  ];
-  const got=await Promise.all(urls.map(function(u){return settled(u)}));
-  got.forEach(function(d){ if(d) drawKp1m(d); });
+  const snap=await settledFirst(repoData("kp1m-archive.json"));
+  if(snap) drawKp1m(snap);
+  const live=await settled("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json");
+  if(live) drawKp1m(live);
 }
 function parseNoaa3DayText(txt){
   const lines=String(txt||"").split(/\n/);
@@ -901,8 +917,8 @@ async function loadWx(){
     settled("https://services.swpc.noaa.gov/products/kyoto-dst.json"),
     settled("https://services.swpc.noaa.gov/json/geospace/geospace_dst_1_hour.json"),
     settled("https://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt"),
-    settled("../data/hemi-archive.txt"),
-    settled("../data/kp1m-archive.json"),
+    settledFirst(repoData("hemi-archive.txt")),
+    settledFirst(repoData("kp1m-archive.json")),
     settled("https://services.swpc.noaa.gov/json/planetary_k_index_1m.json")
   ]);
   const k=Number((newestByTime(kp)||last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(newestByTime(kp)||last(kp)||{}).time_tag,"kp")}
@@ -919,7 +935,7 @@ async function loadWx(){
   drawSw();
 }
 async function loadHp30(){
-  const txt=await settled("../hp30.txt");
+  const txt=await settledFirst(repoHp30());
   if(!txt)return;
   const rows=parseGfzHp30(txt);
   if(rows.length){cache.hp30=rows;drawHp30()}
@@ -1458,7 +1474,7 @@ drawEarth();loadImgs();loadEnlil();
 })();
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001431", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001440", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

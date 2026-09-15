@@ -132,6 +132,34 @@ async function settled(u, signal) {
   }
 }
 
+function snapPaths(name) {
+  let local = "data/" + name;
+  try {
+    const p = (self.location && self.location.pathname) || "";
+    if (/\/experimental\//.test(p)) local = "../data/" + name;
+  } catch (e) {}
+  return [
+    local,
+    "https://jisler420.github.io/spacewxtest/data/" + name,
+    "https://jisler420.github.io/spacewxnightly/data/" + name
+  ];
+}
+function hp30Paths() {
+  let local = "hp30.txt";
+  try {
+    const p = (self.location && self.location.pathname) || "";
+    if (/\/experimental\//.test(p)) local = "../hp30.txt";
+  } catch (e) {}
+  return [local, "https://jisler420.github.io/spacewxtest/hp30.txt"];
+}
+async function settledFirst(urls, signal) {
+  for (let i = 0; i < (urls || []).length; i++) {
+    const v = await settled(urls[i], signal);
+    if (v) return v;
+  }
+  return null;
+}
+
 async function hapi(id, params, start, stop, signal) {
   const u = HAPI + "?id=" + id + "&parameters=" + params + "&start=" + start + "&stop=" + stop + "&format=csv";
   const got = await settled(u, signal);
@@ -232,7 +260,7 @@ async function collect(kind, signal) {
       hapi("solar_wind_plasma_rt", "density,speed,temperature", hapiStart(series.plasma), stop, signal),
       settled(NOAA.dst, signal),
       settled(NOAA.kp1m, signal),
-      settled(NOAA.kp1mSnap, signal),
+      settledFirst(snapPaths("kp1m-archive.json"), signal),
     ]);
     series.mag = mergeRows(series.mag, mag);
     series.plasma = mergeRows(series.plasma, plasma);
@@ -286,8 +314,8 @@ async function collect(kind, signal) {
       settled(NOAA.day, signal),
       settled(NOAA.dstPred, signal),
       settled(NOAA.hemi, signal),
-      hemiNeedCache() ? settled(NOAA.hemiSnap, signal) : Promise.resolve(null),
-      settled("../hp30.txt", signal),
+      hemiNeedCache() ? settledFirst(snapPaths("hemi-archive.txt"), signal) : Promise.resolve(null),
+      settledFirst(hp30Paths(), signal),
       ovationIfNew(signal),
     ]);
     series.enlil = mergeRows(series.enlil, enlil);
@@ -330,7 +358,7 @@ async function collect(kind, signal) {
     dst: !!(bodyCache[NOAA.dst] || src.dst),
     dstPred: !!bodyCache[NOAA.dstPred],
     hemi: !!bodyCache[NOAA.hemi] || !!bodyCache[NOAA.hemiSnap],
-    hp: series.hp.length > 0 || !!bodyCache["../hp30.txt"],
+    hp: series.hp.length > 0 || !!bodyCache["hp30.txt"] || !!bodyCache["../hp30.txt"] || !!bodyCache["https://jisler420.github.io/spacewxtest/hp30.txt"],
     kp: !!(bodyCache[NOAA.kp] || src.kp),
     scales: !!bodyCache[NOAA.scales],
     forecast: !!(bodyCache[NOAA.kf] || bodyCache[NOAA.day]),

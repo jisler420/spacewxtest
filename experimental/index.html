@@ -41,8 +41,8 @@ header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-conte
 .short{display:none}
 .maprow{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);gap:12px;align-items:stretch;margin-bottom:12px}
 .mapbox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#000}
-.mapbox.mode-globe{aspect-ratio:1/1;max-height:min(72vh,640px);margin:0 auto}
-#globebox{display:none;position:absolute;inset:0;background:#070b12}
+.mapbox.mode-globe{aspect-ratio:2/1}
+#globebox{display:none;position:absolute;inset:0;background:#05070c}
 .mapbox.mode-globe #earth{visibility:hidden}
 .mapbox.mode-globe #globebox{display:block}
 .maptools{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.45</div>
+  <div class="pagefoot">V00.14.46</div>
 </div>
 <script>
 (function(){
@@ -1120,23 +1120,24 @@ function updateAuroraView(){
   const pin=document.getElementById("globePinPct");
   if(pin) pin.textContent=Math.round(pct)+"%";
   try{ if(mapMode!=="globe") drawEarth(); }catch(e){}
-  try{ paintGlobeHeat(); }catch(e){}
+  try{ if(mapMode==="globe") paintGlobeHeat(); }catch(e){}
 }
-let mapMode="flat", globeCtl=null, globeHeat=[], globeGrayUrl="";
+let mapMode="flat", globeCtl=null, globeHeat=[], globeGrayUrl="", globeHeatKey="", globeGrayReady=false;
 try{ const mm=localStorage.getItem("spacewx-mapMode"); if(mm==="globe"||mm==="flat") mapMode=mm; }catch(e){}
 function ovationHeatPoints(coords){
   const step=2, map=Object.create(null);
   (coords||[]).forEach(function(p){
-    if(!p||p.length<3||p[2]<8||Math.abs(p[1])<22) return;
+    if(!p||p.length<3||p[2]<4||Math.abs(p[1])<20) return;
     let lon=p[0]; if(lon>180) lon-=360;
     const k=Math.round(lon/step)+","+Math.round(p[1]/step);
-    if(!map[k]||p[2]>map[k].weight) map[k]={lat:p[1], lng:lon, weight:p[2]};
+    if(!map[k]||p[2]>map[k][2]) map[k]=[p[1], lon, p[2]];
   });
   const out=[];
   for(const k in map) out.push(map[k]);
   return out;
 }
 function grayGlobeUrl(){
+  if(globeGrayUrl && globeGrayReady) return globeGrayUrl;
   const w=2048, h=1024;
   const c=document.createElement("canvas"); c.width=w; c.height=h;
   const x=c.getContext("2d");
@@ -1145,6 +1146,7 @@ function grayGlobeUrl(){
   if(baseImg&&baseImg.complete&&baseImg.naturalWidth){
     const y0=h*(90-85)/180, y1=h*(90+85)/180;
     x.drawImage(baseImg, 0, y0, w, Math.max(1, y1-y0));
+    globeGrayReady=true;
   }
   globeGrayUrl=c.toDataURL("image/jpeg", 0.82);
   return globeGrayUrl;
@@ -1154,13 +1156,11 @@ function applyGlobeTexture(){
   try{ globeCtl.globeImageUrl(grayGlobeUrl()); }catch(e){}
 }
 function starFieldUrl(){
-  const c=document.createElement("canvas"); c.width=1024; c.height=512;
-  const x=c.getContext("2d"); x.fillStyle="#05070c"; x.fillRect(0,0,1024,512);
-  for(let i=0;i<1100;i++){
-    const a=0.15+Math.random()*0.85;
-    x.fillStyle="rgba(230,240,255,"+a+")";
-    const s=Math.random()<0.08?2:1;
-    x.fillRect(Math.random()*1024, Math.random()*512, s, s);
+  const c=document.createElement("canvas"); c.width=2048; c.height=1024;
+  const x=c.getContext("2d"); x.fillStyle="#05070c"; x.fillRect(0,0,2048,1024);
+  for(let i=0;i<2800;i++){
+    x.fillStyle="rgba(230,240,255,"+(0.18+Math.random()*0.82)+")";
+    x.fillRect(Math.random()*2048, Math.random()*1024, 1, 1);
   }
   return c.toDataURL();
 }
@@ -1184,93 +1184,66 @@ function sunLight(){
 function sizeGlobe(){
   if(!globeCtl) return;
   const el=document.getElementById("globebox"); if(!el) return;
-  const w=Math.max(280, el.clientWidth), h=Math.max(280, el.clientHeight);
+  const w=Math.max(2, el.clientWidth), h=Math.max(2, el.clientHeight);
+  if(w<8||h<8) return;
   try{ globeCtl.width(w); globeCtl.height(h); }catch(e){}
-}
-function viewPathData(){
-  function closedRing(arr, south){
-    const step=2, n=Math.round(360/step);
-    const bins=new Array(n);
-    (arr||[]).forEach(function(pt){
-      if(!pt||!isFinite(pt.lat)) return;
-      const i=((Math.round((lonNorm(pt.lon)+180)/step)%n)+n)%n;
-      bins[i]=pt.lat;
-    });
-    const kp=currentKpView();
-    for(let i=0;i<n;i++){
-      if(isFinite(bins[i])) continue;
-      let p=-1, nx=-1;
-      for(let d=1;d<n;d++){
-        if(p<0 && isFinite(bins[(i-d+n)%n])) p=d;
-        if(nx<0 && isFinite(bins[(i+d)%n])) nx=d;
-        if(p>0 && nx>0) break;
-      }
-      if(p>0 && nx>0){
-        bins[i]=bins[(i-p+n)%n]+(bins[(i+nx)%n]-bins[(i-p+n)%n])*(p/(p+nx));
-      }else{
-        const lon=-180+i*step;
-        bins[i]=geoLatForMlat((south?-1:1)*viewMlat(kp), lon);
-      }
-    }
-    const sm=new Array(n);
-    for(let i=0;i<n;i++){
-      let s=0;
-      for(let k=-4;k<=4;k++) s+=bins[(i+k+n)%n];
-      sm[i]=s/9;
-    }
-    const pts=[];
-    for(let i=0;i<n;i++) pts.push([sm[i], -180+i*step, 0.016]);
-    pts.push(pts[0]);
-    return pts;
-  }
-  const n=closedRing(viewLineN, false);
-  const s=closedRing(viewLineS, true);
-  return [
-    {points:n, kind:"halo"},
-    {points:s, kind:"halo"},
-    {points:n, kind:"dash"},
-    {points:s, kind:"dash"}
-  ];
 }
 function paintGlobeHeat(){
   globeHeat=ovationHeatPoints(ovationCoords);
   if(!globeCtl) return;
+  const key=(globeHeat.length?globeHeat[0].join(",")+",":"")+globeHeat.length+","+(globeHeat.length?globeHeat[globeHeat.length-1].join(","):"");
+  if(key===globeHeatKey) return;
+  globeHeatKey=key;
   try{
-    globeCtl.heatmapsData(globeHeat.length?[globeHeat]:[]);
-  }catch(e){
-    try{ globeCtl.heatmapsData(globeHeat); }catch(e2){}
-  }
-  try{ globeCtl.pathsData([]); }catch(e){}
+    globeCtl.heatmapPoints(function(d){ return (d&&d.pts)||[]; })
+      .heatmapPointLat(function(p){ return p[0]; })
+      .heatmapPointLng(function(p){ return p[1]; })
+      .heatmapPointWeight(function(p){ return p[2]; })
+      .heatmapsTransitionDuration(0)
+      .heatmapsData(globeHeat.length?[{pts:globeHeat}]:[]);
+  }catch(e){}
 }
 function startGlobe(){
-  if(globeCtl){ sizeGlobe(); sunLight(); paintGlobeHeat(); applyGlobeTexture(); try{ globeCtl.resumeAnimation(); }catch(e){} return; }
   if(typeof Globe!=="function") return;
   const el=document.getElementById("globebox"); if(!el) return;
+  if(el.clientWidth<8||el.clientHeight<8){
+    requestAnimationFrame(startGlobe);
+    return;
+  }
+  if(globeCtl){ sizeGlobe(); sunLight(); paintGlobeHeat(); applyGlobeTexture(); try{ globeCtl.resumeAnimation(); }catch(e){} return; }
   const lat=Math.min(82, Math.max(48, Number(cfg.lat)||55));
   const lng=Number(cfg.lon)||-96.73;
   try{
     globeCtl=Globe({animateIn:false, rendererConfig:{antialias:true, alpha:false, powerPreference:"low-power"}})
       .globeImageUrl(grayGlobeUrl())
       .backgroundImageUrl(starFieldUrl())
-      .backgroundColor("#070b12")
+      .backgroundColor("#05070c")
       .showAtmosphere(true)
       .atmosphereColor("#64748b")
       .atmosphereAltitude(0.1)
-      .heatmapPointLat("lat")
-      .heatmapPointLng("lng")
-      .heatmapPointWeight("weight")
+      .heatmapPoints(function(d){ return (d&&d.pts)||[]; })
+      .heatmapPointLat(function(p){ return p[0]; })
+      .heatmapPointLng(function(p){ return p[1]; })
+      .heatmapPointWeight(function(p){ return p[2]; })
       .heatmapBaseAltitude(0.001)
-      .heatmapTopAltitude(0.03)
-      .heatmapBandwidth(6)
+      .heatmapTopAltitude(0.028)
+      .heatmapBandwidth(5.5)
+      .heatmapColorFn(function(t){
+        const u=Math.max(0, Math.min(1, t));
+        if(u<0.25) return "rgba(16,120,70,"+(0.15+u*1.2)+")";
+        if(u<0.55) return "rgba(34,197,140,"+(0.45+u*0.4)+")";
+        if(u<0.8) return "rgba(94,234,212,0.85)";
+        return "rgba(236,253,245,0.95)";
+      })
       .enablePointerInteraction(true)
       (el);
-    try{ globeCtl.renderer().setPixelRatio(Math.min(1.35, window.devicePixelRatio||1)); }catch(e){}
+    try{ globeCtl.renderer().setPixelRatio(Math.min(1.25, window.devicePixelRatio||1)); }catch(e){}
     try{ globeCtl.globeMaterial().shininess=0; globeCtl.globeMaterial().specular.set("#000000"); }catch(e){}
     globeCtl.pointOfView({lat:lat, lng:lng, altitude:1.85}, 0);
     globeCtl.htmlElementsData([{lat:Number(cfg.lat)||43.55, lng:Number(cfg.lon)||-96.73}])
       .htmlElement(function(){
         const wrap=document.createElement("div");
-        wrap.style.cssText="text-align:center;pointer-events:none;transform:translate(-50%,-12px)";
+        wrap.style.cssText="text-align:center;pointer-events:none";
         const d=document.createElement("div");
         d.style.cssText="width:10px;height:10px;border-radius:50%;background:#5eead4;border:1px solid #ecfeff;margin:0 auto";
         const s=document.createElement("div");
@@ -1297,7 +1270,7 @@ function applyMapMode(){
   if(bg) bg.className=mapMode==="globe"?"on":"";
   try{ localStorage.setItem("spacewx-mapMode", mapMode); }catch(e){}
   if(mapMode==="globe"){
-    startGlobe();
+    requestAnimationFrame(function(){ startGlobe(); });
   }else{
     if(globeCtl) try{ globeCtl.pauseAnimation(); }catch(e){}
     try{ drawEarth(); }catch(e){}

@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.51</div>
+  <div class="pagefoot">V00.14.52</div>
 </div>
 <script>
 (function(){
@@ -1175,59 +1175,50 @@ function updateAuroraView(){
 let mapMode="flat", globeCtl=null, globeHeat=[], globeGrayUrl="", globeHeatKey="", globeGrayReady=false;
 try{ const mm=localStorage.getItem("spacewx-mapMode"); if(mm==="globe"||mm==="flat") mapMode=mm; }catch(e){}
 function ovationHeatPoints(coords){
-  const step=1, map=Object.create(null);
+  const step=2, map=Object.create(null);
   (coords||[]).forEach(function(p){
     if(!p||p.length<3) return;
     const w=Number(p[2])||0, lat=Number(p[1]);
-    if(w<3||Math.abs(lat)<18) return;
+    if(w<6||Math.abs(lat)<22) return;
     let lon=Number(p[0]); if(lon>180) lon-=360;
     const k=Math.round(lon/step)+","+Math.round(lat/step);
-    if(!map[k]||w>map[k][2]) map[k]=[lat, lon, w];
+    if(!map[k]||w>map[k].p) map[k]={lat:lat, lng:lon, p:w};
   });
   const out=[];
   for(const k in map) out.push(map[k]);
   return out;
 }
 function auroraRgb(p){
-  const x=Math.max(0, Math.min(1, (Number(p)||0)/70));
+  const x=Math.max(0, Math.min(1, ((Number(p)||0)-6)/64));
   let r,g,b;
-  if(x<0.22){
-    const u=x/0.22;
-    r=10+u*35; g=120+u*90; b=28+u*8;
-  }else if(x<0.42){
-    const u=(x-0.22)/0.20;
-    r=45+u*190; g=210-u*15; b=36-u*16;
-  }else if(x<0.68){
-    const u=(x-0.42)/0.26;
-    r=235; g=195-u*115; b=20+u*8;
+  if(x<0.18){
+    const u=x/0.18;
+    r=20+u*10; g=180+u*40; b=210-u*80;
+  }else if(x<0.36){
+    const u=(x-0.18)/0.18;
+    r=30+u*20; g=220-u*20; b=130-u*90;
+  }else if(x<0.55){
+    const u=(x-0.36)/0.19;
+    r=50+u*190; g=200+u*20; b=40-u*20;
+  }else if(x<0.75){
+    const u=(x-0.55)/0.20;
+    r=240; g=220-u*130; b=20+u*10;
   }else{
-    const u=(x-0.68)/0.32;
-    r=230-u*15; g=80-u*55; b=28+u*18;
+    const u=(x-0.75)/0.25;
+    r=235-u*15; g=90-u*60; b=30+u*10;
   }
-  return [r,g,b];
-}
-function auroraColorFn(){
-  let maxP=8;
-  (ovationCoords||[]).forEach(function(p){
-    if(p&&p.length>=3&&Math.abs(p[1])>=18&&p[2]>maxP) maxP=p[2];
-  });
-  const peak=Math.max(8, Math.min(80, maxP));
-  return function(t){
-    const u=Math.max(0, Math.min(1, Number(t)||0));
-    const c=auroraRgb(u*peak);
-    return "rgb("+Math.round(c[0])+","+Math.round(c[1])+","+Math.round(c[2])+")";
-  };
+  return [Math.round(r), Math.round(g), Math.round(b)];
 }
 function globeAuroraRGBA(p){
-  if(!(p>=4)) return [0,0,0,0];
+  if(!(p>=6)) return [0,0,0,0];
   const c=auroraRgb(p);
-  const a=Math.round(45+Math.min(1,(p-4)/45)*150);
+  const a=Math.round(70+Math.min(1,(p-6)/40)*140);
   return [c[0], c[1], c[2], a];
 }
 function paintGlobeBelt(coords){
   const gw=720, gh=360, grid=new Float32Array(gw*gh);
   (coords||[]).forEach(function(p){
-    if(!p||p.length<3||p[2]<3||Math.abs(p[1])<18) return;
+    if(!p||p.length<3||p[2]<6||Math.abs(p[1])<22) return;
     let lon=p[0]; if(lon>180) lon-=360;
     const ix=Math.max(0,Math.min(gw-1,Math.round(((lon+180)/360)*(gw-1))));
     const iy=Math.max(0,Math.min(gh-1,Math.round(((90-p[1])/180)*(gh-1))));
@@ -1258,9 +1249,9 @@ function grayGlobeUrl(){
   if(ovationCoords&&ovationCoords.length){
     const belt=paintGlobeBelt(ovationCoords);
     x.save();
-    x.globalCompositeOperation="screen";
-    x.globalAlpha=0.9;
-    x.filter="blur(1px)";
+    x.globalCompositeOperation="source-over";
+    x.globalAlpha=1;
+    x.filter="blur(0.6px)";
     x.drawImage(belt,0,0,w,h);
     x.restore();
   }
@@ -1309,22 +1300,21 @@ function sizeGlobe(){
 function paintGlobeHeat(){
   globeHeat=ovationHeatPoints(ovationCoords);
   if(!globeCtl) return;
-  const key=(globeHeat.length?globeHeat[0].join(",")+",":"")+globeHeat.length+","+(globeHeat.length?globeHeat[globeHeat.length-1].join(","):"");
+  const key=(globeHeat.length?globeHeat[0].lat+","+globeHeat[0].lng+","+globeHeat[0].p:"")+","+globeHeat.length;
   if(key===globeHeatKey) return;
   globeHeatKey=key;
+  try{ globeCtl.heatmapsData([]); }catch(e){}
   try{
     globeCtl
-      .heatmapPoints(function(d){ return Array.isArray(d)?d:(d&&(d.pts||d.points))||[]; })
-      .heatmapPointLat(function(p){ return Number(p[0]); })
-      .heatmapPointLng(function(p){ return Number(p[1]); })
-      .heatmapPointWeight(function(p){ return Math.max(0.2, Number(p[2])||0); })
-      .heatmapColorFn(auroraColorFn)
-      .heatmapColorSaturation(1.05)
-      .heatmapBandwidth(2.9)
-      .heatmapBaseAltitude(0.004)
-      .heatmapTopAltitude(0.072)
-      .heatmapsTransitionDuration(0)
-      .heatmapsData(globeHeat.length?[globeHeat]:[]);
+      .pointsMerge(true)
+      .pointResolution(8)
+      .pointsTransitionDuration(0)
+      .pointLat("lat")
+      .pointLng("lng")
+      .pointColor(function(d){ const c=auroraRgb(d.p); return "rgb("+c[0]+","+c[1]+","+c[2]+")"; })
+      .pointAltitude(function(d){ return 0.012+Math.min(0.05,(Number(d.p)||0)/1100); })
+      .pointRadius(0.55)
+      .pointsData(globeHeat);
   }catch(e){}
   try{ applyGlobeTexture(); }catch(e){}
 }
@@ -1344,18 +1334,12 @@ function startGlobe(){
       .backgroundImageUrl(starFieldUrl())
       .backgroundColor("#05070c")
       .showAtmosphere(true)
-      .atmosphereColor("#4d7c76")
-      .atmosphereAltitude(0.12)
-      .heatmapPoints(function(d){ return Array.isArray(d)?d:(d&&(d.pts||d.points))||[]; })
-      .heatmapPointLat(function(p){ return Number(p[0]); })
-      .heatmapPointLng(function(p){ return Number(p[1]); })
-      .heatmapPointWeight(function(p){ return Math.max(0.2, Number(p[2])||0); })
-      .heatmapColorFn(auroraColorFn)
-      .heatmapColorSaturation(1.05)
-      .heatmapBandwidth(2.9)
-      .heatmapBaseAltitude(0.004)
-      .heatmapTopAltitude(0.072)
-      .heatmapsTransitionDuration(0)
+      .atmosphereColor("#64748b")
+      .atmosphereAltitude(0.1)
+      .heatmapsData([])
+      .pointsMerge(true)
+      .pointResolution(8)
+      .pointsTransitionDuration(0)
       .enablePointerInteraction(true)
       (el);
     try{ globeCtl.renderer().setPixelRatio(Math.min(1.25, window.devicePixelRatio||1)); }catch(e){}

@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.44</div>
+  <div class="pagefoot">V00.14.45</div>
 </div>
 <script>
 (function(){
@@ -1375,11 +1375,10 @@ function drawEarth(){
   }
   ctx.strokeStyle="rgba(226,232,240,0.55)"; ctx.lineWidth=1.2; ctx.stroke();
   if(auroraData){const off=document.createElement("canvas");off.width=auroraData.width;off.height=auroraData.height;off.getContext("2d").putImageData(auroraData,0,0);ctx.save();ctx.imageSmoothingEnabled=true;ctx.globalCompositeOperation="screen";ctx.filter="blur(1.6px)";ctx.drawImage(off,0,0,w,h);ctx.restore()}
-  drawViewLine(ctx,w,h);
   const m=xy(cfg.lon,cfg.lat,w,h);ctx.beginPath();ctx.arc(m[0],m[1],5,0,Math.PI*2);ctx.fillStyle="#fb923c";ctx.fill();ctx.strokeStyle="#fff7ed";ctx.lineWidth=1;ctx.stroke();
 }
 function mapCaption(obs){
-  const mode=mapMode==="globe"?" · 3D curtain":" · white dash = horizon view line";
+  const mode=mapMode==="globe"?" · 3D curtain":"";
   const ov=obs?("OVATION "+String(obs).replace("T"," ").replace("Z"," UTC")+mode):"";
   return ov||"equirectangular Earth · poles + OVATION";
 }

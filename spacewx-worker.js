@@ -335,6 +335,10 @@ async function collect(kind, signal) {
     if (sc && putIfChanged(out, "sc", sc.data)) changed = true;
     if (kf && putIfChanged(out, "kf", kf.data)) changed = true;
     if (dayTxt && putIfChanged(out, "dayTxt", dayTxt.data)) changed = true;
+    if (out.kf || out.dayTxt) {
+      if (!out.kf && bodyCache[NOAA.kf]) out.kf = bodyCache[NOAA.kf];
+      if (!out.dayTxt && bodyCache[NOAA.day]) out.dayTxt = bodyCache[NOAA.day];
+    }
     if (dstPred && putIfChanged(out, "dstPred", dstPred.data)) changed = true;
     if (hemiSnap && putIfChanged(out, "hemiSnap", hemiSnap.data)) changed = true;
     if (hemi && putIfChanged(out, "hemi", hemi.data)) changed = true;

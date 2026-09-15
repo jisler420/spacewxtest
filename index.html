@@ -51,7 +51,7 @@ td.kp-pred{opacity:.78}
 #kpForecast table{width:100%;min-width:280px;border-collapse:collapse;font-variant-numeric:tabular-nums}
 #kpForecast th{padding:4px 2px 8px;font-size:11px;font-weight:600;color:#8b97b3;text-align:center}
 #kpForecast th:first-child,#kpForecast td:first-child{text-align:left;color:#8b97b3;font-size:11px}
-#kpForecast td{padding:5px 2px;text-align:center;border-radius:6px;vertical-align:top}
+#kpForecast td{padding:5px 2px;text-align:center;border-radius:6px;vertical-align:middle;white-space:nowrap}
 #kpForecast .kp{font-size:15px;font-weight:650;line-height:1.1}
 #kpForecast .g{font-size:11px;letter-spacing:.04em;margin-left:4px}
 #kpForecast .g0{color:#64748b}#kpForecast .g1{color:#f5d76e}#kpForecast .g2{color:#f59e42}#kpForecast .g3{color:#fb7185}#kpForecast .g4,#kpForecast .g5{color:#f05252}
@@ -217,7 +217,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.13.40</div>
+  <div class="pagefoot">V00.13.41</div>
 </div>
 <script>
 (function(){
@@ -227,7 +227,7 @@ th:first-child,td:first-child{text-align:left}
 const DEFAULT={zip:"",lat:43.54731,lon:-96.7313,place:"43.54731, -96.73130",tz:"America/Chicago",pollSec:60};
 function loadCfg(){try{return Object.assign({},DEFAULT,JSON.parse(localStorage.getItem("spacewx-cfg")||"{}"))}catch(e){return Object.assign({},DEFAULT)}}
 const cfg=loadCfg();
-const cache={dst:[],dstPred:[],hp30:[],kp:[]};
+const cache={dst:[],dstPred:[],hp30:[],kp:[],kf:[],dayRows:[]};
 const DOWN="Data Feed Down";
 function hasValue(el){if(!el)return false;const t=(el.textContent||"").trim();return t&&t!=="-"&&t!=="—"&&t!==DOWN}
 function setDown(el){if(!el||hasValue(el))return;el.textContent=DOWN;el.className="down"}
@@ -614,22 +614,56 @@ function parseNoaa3DayText(txt){
     cells.forEach(function(cell,i){
       if(!days[i])return;
       const t=new Date(Date.UTC(year,days[i].mon,days[i].day,hour,0,0));
-      rows.push({time_tag:t.toISOString().replace(/\.\d{3}Z$/,"Z"),kp:Number(cell[1]),observed:t.getTime()<Date.now()-3*3600000?"observed":"predicted",noaa_scale:cell[2]||""});
+      rows.push({time_tag:t.toISOString().replace(/\.\d{3}Z$/,"Z"),kp:Number(cell[1]),observed:"forecast",noaa_scale:cell[2]||""});
     });
   });
   return rows;
 }
-function renderKpForecast(kf){
-  if(!Array.isArray(kf)||!kpForecast)return;
+function kpKindRank(kind){
+  const k=String(kind||"").toLowerCase();
+  if(k.indexOf("obs")===0) return 3;
+  if(k.indexOf("est")===0) return 2;
+  return 1;
+}
+function asKpSlot(r, src){
+  if(!r||typeof r!=="object") return null;
+  const t=parseT(r.time_tag||r[0]);
+  if(!isFinite(t)) return null;
+  const kp=Number(r.kp??r.Kp??r[1]);
+  if(!isFinite(kp)) return null;
+  return {kp:kp, kind:r.observed||r[2]||"", scale:r.noaa_scale||"", src:src, t:t};
+}
+function betterKpSlot(oldS, neu){
+  if(!oldS) return neu;
+  if(!neu) return oldS;
+  const ro=kpKindRank(oldS.kind), rn=kpKindRank(neu.kind);
+  if(rn>ro) return neu;
+  if(rn<ro) return oldS;
+  if(rn>=2) return neu.src==="json"?neu:oldS;
+  return neu.src==="text"?neu:oldS;
+}
+function ingestKpForecast(kf, dayTxt){
+  if(Array.isArray(kf)&&kf.length) cache.kf=kf;
+  if(dayTxt){
+    const rows=parseNoaa3DayText(dayTxt);
+    if(rows.length) cache.dayRows=rows;
+  }
+  renderKpForecast();
+}
+function renderKpForecast(){
+  if(!kpForecast)return;
   const by={};
-  kf.forEach(r=>{
-    if(!r||typeof r!=="object")return;
-    const t=parseT(r.time_tag||r[0]);
-    if(!isFinite(t))return;
-    const d=new Date(t);
-    const kp=Number(r.kp??r.Kp??r[1]);
-    by[d.toISOString().slice(0,10)+"-"+d.getUTCHours()]={kp:kp,kind:r.observed||r[2]||"",scale:r.noaa_scale||""};
-  });
+  function put(list, src){
+    (list||[]).forEach(function(r){
+      const s=asKpSlot(r, src);
+      if(!s) return;
+      const d=new Date(s.t);
+      const key=d.toISOString().slice(0,10)+"-"+d.getUTCHours();
+      by[key]=betterKpSlot(by[key], s);
+    });
+  }
+  put(cache.kf, "json");
+  put(cache.dayRows, "text");
   const start=new Date();start.setUTCHours(0,0,0,0);
   const days=[];
   for(let i=0;i<3;i++){
@@ -650,7 +684,7 @@ function renderKpForecast(kf){
       const s=by[d.date+"-"+h], kv=s&&isFinite(s.kp)?Number(s.kp):NaN;
       let cls="";
       if(isFinite(kv)) cls=kv>=7?"kp-7":kv>=5?"kp-5":kv>=4?"kp-4":"kp-g";
-      if(s&&String(s.kind).toLowerCase().indexOf("pred")===0) cls+=" kp-pred";
+      if(s&&kpKindRank(s.kind)<2) cls+=" kp-pred";
       if(d.date===nowD&&h===nowH) cls+=" kp-now";
       html+="<td class=\""+cls+"\">"+kpGCell(kv,s&&s.scale)+"</td>";
     });
@@ -912,7 +946,7 @@ async function loadWx(){
   const k=Number((newestByTime(kp)||last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(newestByTime(kp)||last(kp)||{}).time_tag,"kp")}
   if(Array.isArray(kp)) cache.kp=kp;
   if(sc&&sc["0"]){const n=sc["0"];vRsg.textContent="R"+(n.R&&n.R.Scale||0)+" S"+(n.S&&n.S.Scale||0)+" G"+(n.G&&n.G.Scale||0);tone(vRsg,"g",Number(n.G&&n.G.Scale||0));stampScales(sc)}
-  if(Array.isArray(kf)||dayTxt) renderKpForecast([].concat(Array.isArray(kf)?kf:[], parseNoaa3DayText(dayTxt||"")));
+  if(Array.isArray(kf)||dayTxt) ingestKpForecast(kf, dayTxt);
   if(Array.isArray(dst)){cache.dst=dst.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
   if(Array.isArray(dstPred)){cache.dstPred=dstPred.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
   if(Array.isArray(dst)||Array.isArray(dstPred)) drawDst();
@@ -1217,7 +1251,7 @@ function applyWorkerData(data){
     const k=Number((newestByTime(kp)||last(kp)||{}).Kp); if(isFinite(k)){vKp.textContent=k.toFixed(1);tone(vKp,"kp",k);stampWhen("tKp",(newestByTime(kp)||last(kp)||{}).time_tag,"kp")}
     if(Array.isArray(kp)) cache.kp=kp;
     if(sc&&sc["0"]){const n=sc["0"];vRsg.textContent="R"+(n.R&&n.R.Scale||0)+" S"+(n.S&&n.S.Scale||0)+" G"+(n.G&&n.G.Scale||0);tone(vRsg,"g",Number(n.G&&n.G.Scale||0));stampScales(sc)}
-    if(Array.isArray(kf)||dayTxt) renderKpForecast([].concat(Array.isArray(kf)?kf:[], parseNoaa3DayText(dayTxt||"")));
+    if(Array.isArray(kf)||dayTxt) ingestKpForecast(kf, dayTxt);
     if(Array.isArray(dst)){cache.dst=dst.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
     if(Array.isArray(data.dstPred)){cache.dstPred=data.dstPred.slice().sort((a,b)=>parseT(a.time_tag)-parseT(b.time_tag))}
     if(Array.isArray(dst)||Array.isArray(data.dstPred)) drawDst();
@@ -1250,7 +1284,7 @@ drawEarth();loadImgs();loadEnlil();
 window.addEventListener("resize", function(){ try{ drawEarth(); }catch(e){} });
 let wxWorker=null, workerOk=false;
 try{
-  const wurl=new URL("spacewx-worker.js?v=001440", document.baseURI||location.href);
+  const wurl=new URL("spacewx-worker.js?v=001441", document.baseURI||location.href);
   wxWorker=new Worker(wurl);
   wxWorker.onmessage=function(e){
     if(e.data&&e.data.type==="update"){workerOk=true;applyWorkerData(e.data.data)}

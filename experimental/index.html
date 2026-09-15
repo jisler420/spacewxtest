@@ -41,7 +41,7 @@ header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-conte
 .short{display:none}
 .maprow{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);gap:12px;align-items:stretch;margin-bottom:12px}
 .mapbox{position:relative;width:100%;min-height:220px;aspect-ratio:2/1;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#000}
-.mapbox.mode-globe{aspect-ratio:2/1}
+.mapbox.mode-globe{aspect-ratio:1.18;min-height:340px}
 #globebox{display:none;position:absolute;inset:0;background:#05070c}
 .mapbox.mode-globe #earth{visibility:hidden}
 .mapbox.mode-globe #globebox{display:block}
@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.58</div>
+  <div class="pagefoot">V00.14.59</div>
 </div>
 <script>
 (function(){
@@ -1175,28 +1175,21 @@ function updateAuroraView(){
 let mapMode="flat", globeCtl=null, globeHeat=[], globeGrayUrl="", globeHeatKey="", globeGrayReady=false;
 try{ const mm=localStorage.getItem("spacewx-mapMode"); if(mm==="globe"||mm==="flat") mapMode=mm; }catch(e){}
 function ovationHeatPoints(coords){
-  const bins={n:Object.create(null), s:Object.create(null)};
+  const cell=Object.create(null);
   (coords||[]).forEach(function(p){
     if(!p||p.length<3) return;
     const w=Number(p[2])||0, lat=Number(p[1]);
-    if(!(w>=6)||!isFinite(lat)) return;
+    if(!(w>=1)||!isFinite(lat)) return;
     let lon=Number(p[0]); if(lon>180) lon-=360;
-    const hemi=lat>=0?"n":"s";
-    const key=String(Math.round(lon/2)*2);
-    const b=bins[hemi][key];
-    if(!b||w>b.peak) bins[hemi][key]={peak:w, ridge:lat};
+    if(!isFinite(lon)) return;
+    const la=Math.round(lat/2)*2;
+    const lo=Math.round(lon/3)*3;
+    const k=la+","+lo;
+    const cur=cell[k];
+    if(!cur||w>cur.weight) cell[k]={lat:la, lng:lo, weight:w};
   });
   const out=[];
-  (coords||[]).forEach(function(p){
-    if(!p||p.length<3) return;
-    const w=Number(p[2])||0, lat=Number(p[1]);
-    if(!(w>=6)||!isFinite(lat)) return;
-    let lon=Number(p[0]); if(lon>180) lon-=360;
-    const hemi=lat>=0?"n":"s";
-    const b=bins[hemi][String(Math.round(lon/2)*2)];
-    if(!b||b.peak<8||Math.abs(lat-b.ridge)>7) return;
-    out.push({lat:lat, lng:lon, weight:w});
-  });
+  Object.keys(cell).forEach(function(k){ out.push(cell[k]); });
   return out;
 }
 function grayGlobeUrl(){
@@ -1204,14 +1197,16 @@ function grayGlobeUrl(){
   const w=2048, h=1024;
   const c=document.createElement("canvas"); c.width=w; c.height=h;
   const x=c.getContext("2d");
-  x.fillStyle="#14181f";
+  x.fillStyle="#1a1f28";
   x.fillRect(0,0,w,h);
   if(baseImg&&baseImg.complete&&baseImg.naturalWidth){
     const y0=h*(90-85)/180, y1=h*(90+85)/180;
+    x.filter="brightness(1.65) contrast(1.2) saturate(0.35)";
     x.drawImage(baseImg, 0, y0, w, Math.max(1, y1-y0));
+    x.filter="none";
     globeGrayReady=true;
   }
-  globeGrayUrl=c.toDataURL("image/jpeg", 0.88);
+  globeGrayUrl=c.toDataURL("image/jpeg", 0.9);
   return globeGrayUrl;
 }
 function applyGlobeTexture(){
@@ -1225,9 +1220,10 @@ function applyGlobeTexture(){
 function starFieldUrl(){
   const c=document.createElement("canvas"); c.width=2048; c.height=1024;
   const x=c.getContext("2d"); x.fillStyle="#05070c"; x.fillRect(0,0,2048,1024);
-  for(let i=0;i<2800;i++){
-    x.fillStyle="rgba(230,240,255,"+(0.18+Math.random()*0.82)+")";
-    x.fillRect(Math.random()*2048, Math.random()*1024, 1, 1);
+  for(let i=0;i<5200;i++){
+    const a=0.12+Math.random()*0.7, s=Math.random()<0.08?2:1;
+    x.fillStyle="rgba(226,232,240,"+a+")";
+    x.fillRect(Math.random()*2048, Math.random()*1024, s, s);
   }
   return c.toDataURL();
 }
@@ -1244,8 +1240,8 @@ function sunLight(){
     for(let i=0;i<lights.length;i++) if(lights[i]&&lights[i].type==="DirectionalLight") dir=lights[i];
     if(!dir&&lights[1]) dir=lights[1];
     if(dir&&v) dir.position.set(v.x, v.y, v.z);
-    if(dir) dir.intensity=1.55;
-    if(lights[0]) lights[0].intensity=0.2;
+    if(dir) dir.intensity=7;
+    if(lights[0]) lights[0].intensity=2.4;
   }catch(e){}
 }
 function sizeGlobe(){
@@ -1266,10 +1262,10 @@ function paintGlobeHeat(){
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
-      .heatmapColorSaturation(0.75)
+      .heatmapColorSaturation(1.5)
       .heatmapBaseAltitude(0.001)
-      .heatmapTopAltitude(0.018)
-      .heatmapBandwidth(1.7)
+      .heatmapTopAltitude(0.03)
+      .heatmapBandwidth(6)
       .heatmapsTransitionDuration(0)
       .heatmapsData(globeHeat.length?[globeHeat]:[]);
   }catch(e){}
@@ -1282,7 +1278,7 @@ function startGlobe(){
     return;
   }
   if(globeCtl){ sizeGlobe(); sunLight(); paintGlobeHeat(); applyGlobeTexture(); try{ globeCtl.resumeAnimation(); }catch(e){} return; }
-  const lat=Math.min(82, Math.max(48, Number(cfg.lat)||55));
+  const lat=(Number(cfg.lat)||43)>=0?70:-70;
   const lng=Number(cfg.lon)||-96.73;
   try{
     globeCtl=Globe({animateIn:false, rendererConfig:{antialias:true, alpha:false, powerPreference:"low-power"}})
@@ -1290,21 +1286,21 @@ function startGlobe(){
       .backgroundImageUrl(starFieldUrl())
       .backgroundColor("#0c0c0c")
       .showAtmosphere(true)
-      .atmosphereColor("#64748b")
-      .atmosphereAltitude(0.12)
+      .atmosphereColor("#8ea0b8")
+      .atmosphereAltitude(0.14)
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
-      .heatmapColorSaturation(0.75)
+      .heatmapColorSaturation(1.5)
       .heatmapBaseAltitude(0.001)
-      .heatmapTopAltitude(0.018)
-      .heatmapBandwidth(1.7)
+      .heatmapTopAltitude(0.03)
+      .heatmapBandwidth(6)
       .heatmapsTransitionDuration(0)
       .enablePointerInteraction(true)
       (el);
     try{ globeCtl.renderer().setPixelRatio(Math.min(1.25, window.devicePixelRatio||1)); }catch(e){}
     try{ globeCtl.globeMaterial().shininess=0; globeCtl.globeMaterial().specular.set("#000000"); }catch(e){}
-    globeCtl.pointOfView({lat:lat, lng:lng, altitude:1.85}, 0);
+    globeCtl.pointOfView({lat:lat, lng:lng, altitude:1.42}, 0);
     globeCtl.htmlElementsData([{lat:Number(cfg.lat)||43.55, lng:Number(cfg.lon)||-96.73}])
       .htmlElement(function(){
         const wrap=document.createElement("div");

@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.55</div>
+  <div class="pagefoot">V00.14.56</div>
 </div>
 <script>
 (function(){
@@ -1175,17 +1175,14 @@ function updateAuroraView(){
 let mapMode="flat", globeCtl=null, globeHeat=[], globeGrayUrl="", globeHeatKey="", globeGrayReady=false;
 try{ const mm=localStorage.getItem("spacewx-mapMode"); if(mm==="globe"||mm==="flat") mapMode=mm; }catch(e){}
 function ovationHeatPoints(coords){
-  const step=2, map=Object.create(null);
+  const out=[];
   (coords||[]).forEach(function(p){
     if(!p||p.length<3) return;
-    const w=Number(p[2])||0, lat=Number(p[1]);
-    if(w<4||Math.abs(lat)<20) return;
+    const w=Number(p[2])||0;
+    if(!(w>=1)) return;
     let lon=Number(p[0]); if(lon>180) lon-=360;
-    const k=Math.round(lon/step)+","+Math.round(lat/step);
-    if(!map[k]||w>map[k].weight) map[k]={lat:lat, lng:lon, weight:w};
+    out.push({lat:Number(p[1]), lng:lon, weight:w});
   });
-  const out=[];
-  for(const k in map) out.push(map[k]);
   return out;
 }
 function grayGlobeUrl(){
@@ -1255,7 +1252,6 @@ function paintGlobeHeat(){
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
-      .heatmapColorSaturation(0.9)
       .heatmapBaseAltitude(0.001)
       .heatmapTopAltitude(0.03)
       .heatmapBandwidth(6)
@@ -1284,7 +1280,6 @@ function startGlobe(){
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
-      .heatmapColorSaturation(0.9)
       .heatmapBaseAltitude(0.001)
       .heatmapTopAltitude(0.03)
       .heatmapBandwidth(6)

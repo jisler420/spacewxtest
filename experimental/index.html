@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.52</div>
+  <div class="pagefoot">V00.14.53</div>
 </div>
 <script>
 (function(){
@@ -1179,60 +1179,14 @@ function ovationHeatPoints(coords){
   (coords||[]).forEach(function(p){
     if(!p||p.length<3) return;
     const w=Number(p[2])||0, lat=Number(p[1]);
-    if(w<6||Math.abs(lat)<22) return;
+    if(w<4||Math.abs(lat)<20) return;
     let lon=Number(p[0]); if(lon>180) lon-=360;
     const k=Math.round(lon/step)+","+Math.round(lat/step);
-    if(!map[k]||w>map[k].p) map[k]={lat:lat, lng:lon, p:w};
+    if(!map[k]||w>map[k].weight) map[k]={lat:lat, lng:lon, weight:w};
   });
   const out=[];
   for(const k in map) out.push(map[k]);
   return out;
-}
-function auroraRgb(p){
-  const x=Math.max(0, Math.min(1, ((Number(p)||0)-6)/64));
-  let r,g,b;
-  if(x<0.18){
-    const u=x/0.18;
-    r=20+u*10; g=180+u*40; b=210-u*80;
-  }else if(x<0.36){
-    const u=(x-0.18)/0.18;
-    r=30+u*20; g=220-u*20; b=130-u*90;
-  }else if(x<0.55){
-    const u=(x-0.36)/0.19;
-    r=50+u*190; g=200+u*20; b=40-u*20;
-  }else if(x<0.75){
-    const u=(x-0.55)/0.20;
-    r=240; g=220-u*130; b=20+u*10;
-  }else{
-    const u=(x-0.75)/0.25;
-    r=235-u*15; g=90-u*60; b=30+u*10;
-  }
-  return [Math.round(r), Math.round(g), Math.round(b)];
-}
-function globeAuroraRGBA(p){
-  if(!(p>=6)) return [0,0,0,0];
-  const c=auroraRgb(p);
-  const a=Math.round(70+Math.min(1,(p-6)/40)*140);
-  return [c[0], c[1], c[2], a];
-}
-function paintGlobeBelt(coords){
-  const gw=720, gh=360, grid=new Float32Array(gw*gh);
-  (coords||[]).forEach(function(p){
-    if(!p||p.length<3||p[2]<6||Math.abs(p[1])<22) return;
-    let lon=p[0]; if(lon>180) lon-=360;
-    const ix=Math.max(0,Math.min(gw-1,Math.round(((lon+180)/360)*(gw-1))));
-    const iy=Math.max(0,Math.min(gh-1,Math.round(((90-p[1])/180)*(gh-1))));
-    const j=iy*gw+ix;
-    if(p[2]>grid[j]) grid[j]=p[2];
-  });
-  const img=new ImageData(gw,gh);
-  for(let i=0;i<grid.length;i++){
-    const c=globeAuroraRGBA(grid[i]), o=i*4;
-    img.data[o]=c[0]; img.data[o+1]=c[1]; img.data[o+2]=c[2]; img.data[o+3]=c[3];
-  }
-  const c=document.createElement("canvas"); c.width=gw; c.height=gh;
-  c.getContext("2d").putImageData(img,0,0);
-  return c;
 }
 function grayGlobeUrl(){
   if(globeGrayUrl && globeGrayReady) return globeGrayUrl;
@@ -1246,22 +1200,15 @@ function grayGlobeUrl(){
     x.drawImage(baseImg, 0, y0, w, Math.max(1, y1-y0));
     globeGrayReady=true;
   }
-  if(ovationCoords&&ovationCoords.length){
-    const belt=paintGlobeBelt(ovationCoords);
-    x.save();
-    x.globalCompositeOperation="source-over";
-    x.globalAlpha=1;
-    x.filter="blur(0.6px)";
-    x.drawImage(belt,0,0,w,h);
-    x.restore();
-  }
   globeGrayUrl=c.toDataURL("image/jpeg", 0.88);
   return globeGrayUrl;
 }
 function applyGlobeTexture(){
-  globeGrayUrl="";
-  globeGrayReady=false;
   if(!globeCtl) return;
+  if(!globeGrayUrl || !globeGrayReady){
+    globeGrayUrl="";
+    globeGrayReady=false;
+  }
   try{ globeCtl.globeImageUrl(grayGlobeUrl()); }catch(e){}
 }
 function starFieldUrl(){
@@ -1300,23 +1247,21 @@ function sizeGlobe(){
 function paintGlobeHeat(){
   globeHeat=ovationHeatPoints(ovationCoords);
   if(!globeCtl) return;
-  const key=(globeHeat.length?globeHeat[0].lat+","+globeHeat[0].lng+","+globeHeat[0].p:"")+","+globeHeat.length;
+  const key=(globeHeat.length?globeHeat[0].lat+","+globeHeat[0].lng+","+globeHeat[0].weight:"")+","+globeHeat.length;
   if(key===globeHeatKey) return;
   globeHeatKey=key;
-  try{ globeCtl.heatmapsData([]); }catch(e){}
+  try{ globeCtl.pointsData([]); }catch(e){}
   try{
     globeCtl
-      .pointsMerge(true)
-      .pointResolution(8)
-      .pointsTransitionDuration(0)
-      .pointLat("lat")
-      .pointLng("lng")
-      .pointColor(function(d){ const c=auroraRgb(d.p); return "rgb("+c[0]+","+c[1]+","+c[2]+")"; })
-      .pointAltitude(function(d){ return 0.012+Math.min(0.05,(Number(d.p)||0)/1100); })
-      .pointRadius(0.55)
-      .pointsData(globeHeat);
+      .heatmapPointLat("lat")
+      .heatmapPointLng("lng")
+      .heatmapPointWeight("weight")
+      .heatmapBaseAltitude(0.001)
+      .heatmapTopAltitude(0.03)
+      .heatmapBandwidth(6)
+      .heatmapsTransitionDuration(0)
+      .heatmapsData(globeHeat.length?[globeHeat]:[]);
   }catch(e){}
-  try{ applyGlobeTexture(); }catch(e){}
 }
 function startGlobe(){
   if(typeof Globe!=="function") return;
@@ -1332,14 +1277,17 @@ function startGlobe(){
     globeCtl=Globe({animateIn:false, rendererConfig:{antialias:true, alpha:false, powerPreference:"low-power"}})
       .globeImageUrl(grayGlobeUrl())
       .backgroundImageUrl(starFieldUrl())
-      .backgroundColor("#05070c")
+      .backgroundColor("#0c0c0c")
       .showAtmosphere(true)
       .atmosphereColor("#64748b")
-      .atmosphereAltitude(0.1)
-      .heatmapsData([])
-      .pointsMerge(true)
-      .pointResolution(8)
-      .pointsTransitionDuration(0)
+      .atmosphereAltitude(0.12)
+      .heatmapPointLat("lat")
+      .heatmapPointLng("lng")
+      .heatmapPointWeight("weight")
+      .heatmapBaseAltitude(0.001)
+      .heatmapTopAltitude(0.03)
+      .heatmapBandwidth(6)
+      .heatmapsTransitionDuration(0)
       .enablePointerInteraction(true)
       (el);
     try{ globeCtl.renderer().setPixelRatio(Math.min(1.25, window.devicePixelRatio||1)); }catch(e){}

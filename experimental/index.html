@@ -229,7 +229,7 @@ th:first-child,td:first-child{text-align:left}
   <div class="pagefoot" id="pageRefreshed">Page Refreshed —</div>
   <div class="pagefoot">Data Credit to: NOAA SWPC · KNMI · GFZ · Kyoto</div>
   <div class="pagefoot">© 2026 SpaceWX by Pretty Boy Josh FSD</div>
-  <div class="pagefoot">V00.14.54</div>
+  <div class="pagefoot">V00.14.55</div>
 </div>
 <script>
 (function(){
@@ -1188,15 +1188,6 @@ function ovationHeatPoints(coords){
   for(const k in map) out.push(map[k]);
   return out;
 }
-function auroraColorFn(){
-  return function(t){
-    const e=Math.max(0, Math.min(1, (Number(t)||0)*0.68));
-    const r=Math.max(0,Math.min(255,Math.round(34.61+e*(1172.33-e*(10793.56-e*(33300.12-e*(38394.49-14825.05*e)))))));
-    const g=Math.max(0,Math.min(255,Math.round(23.31+e*(557.33+e*(1225.33-e*(3574.96-e*(1073.77+707.56*e)))))));
-    const b=Math.max(0,Math.min(255,Math.round(27.2+e*(3211.1-e*(15327.97-e*(27814-e*(22569.18-6838.66*e)))))));
-    return "rgb("+r+","+g+","+b+")";
-  };
-}
 function grayGlobeUrl(){
   if(globeGrayUrl && globeGrayReady) return globeGrayUrl;
   const w=2048, h=1024;
@@ -1259,17 +1250,15 @@ function paintGlobeHeat(){
   const key=(globeHeat.length?globeHeat[0].lat+","+globeHeat[0].lng+","+globeHeat[0].weight:"")+","+globeHeat.length;
   if(key===globeHeatKey) return;
   globeHeatKey=key;
-  try{ globeCtl.pointsData([]); }catch(e){}
   try{
     globeCtl
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
-      .heatmapColorFn(auroraColorFn)
-      .heatmapColorSaturation(1)
+      .heatmapColorSaturation(0.9)
       .heatmapBaseAltitude(0.001)
-      .heatmapTopAltitude(0.024)
-      .heatmapBandwidth(5.2)
+      .heatmapTopAltitude(0.03)
+      .heatmapBandwidth(6)
       .heatmapsTransitionDuration(0)
       .heatmapsData(globeHeat.length?[globeHeat]:[]);
   }catch(e){}
@@ -1295,11 +1284,10 @@ function startGlobe(){
       .heatmapPointLat("lat")
       .heatmapPointLng("lng")
       .heatmapPointWeight("weight")
-      .heatmapColorFn(auroraColorFn)
-      .heatmapColorSaturation(1)
+      .heatmapColorSaturation(0.9)
       .heatmapBaseAltitude(0.001)
-      .heatmapTopAltitude(0.024)
-      .heatmapBandwidth(5.2)
+      .heatmapTopAltitude(0.03)
+      .heatmapBandwidth(6)
       .heatmapsTransitionDuration(0)
       .enablePointerInteraction(true)
       (el);

@@ -1,18 +1,1 @@
-#Aurora Hemispheric Power Tabular Values
-# Product: Ovation Aurora Short Term Forecast    http://services.swpc.noaa.gov/text/aurora-nowcast-hemi-power.txt
-# Timestamp is the valid time of a 30 minute forecast
-# This file contains data for 2026-11-13
-#
-# Prepared by the U.S. Dept. of Commerce, NOAA, Space Weather Prediction Center.
-# Please send comments and suggestions to SWPC.CustomerSupport@noaa.gov
-#
-# Missing Data:  (n/a)
-# Cadence:   5 minutes
-#
-# Tabular Data Format
-#
-# Observation        Forecast            North-Hemispheric-Power-Index    South-Hemispheric-Power-Index-GigaWatts
-# YYYY-MM-DD_HH:MM   YYYY-MM-DD_HH:MM    GigaWatts    			  GigaWatts
-#------------------------------------------------------------------------------------------------
-2026-11-13_00:00    2026-11-13_00:58      16      16
-[... complete 287 data rows for 2026-11-13 as in the downloaded file]
+PLACEHOLDER_FOR_FULL_FILE_CONTENT
